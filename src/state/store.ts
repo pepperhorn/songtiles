@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, TrayCapacity, RepeatPoolSize } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize } from '../graph/types';
 import { cellKey } from '../graph/types';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
@@ -41,6 +41,9 @@ export interface AppState {
   patchId: string;
   isPlaying: boolean;
 
+  // Selected tile (for detail panel)
+  selectedTileId: TileId | null;
+
   // Actions
   initSession(opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }): void;
   refillTray(): void;
@@ -48,6 +51,9 @@ export interface AppState {
   placeTileOnCell(id: TileId, cell: Cell): void;
   returnTileFromCanvas(id: TileId): void;
   setStartTile(id: TileId | null): void;
+  selectTile(id: TileId | null): void;
+  setSegmentMode(rootId: TileId, mode: SegmentMode): void;
+  setSegmentHold(rootId: TileId, holdBeats: 1|2|3|4): void;
   play(): void;
   stop(): void;
 }
@@ -56,6 +62,7 @@ const baseDefaults = {
   tiles: {} as Record<TileId, Tile>,
   byCell: {} as Record<string, TileId>,
   startTileId: null as TileId | null,
+  selectedTileId: null as TileId | null,
   segmentSettings: {} as Record<TileId, SegmentSettings>,
   tray: [] as TileId[],
   deck: [] as TileId[],
@@ -156,6 +163,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setStartTile(id) { set({ startTileId: id }); },
+
+  selectTile(id) { set({ selectedTileId: id }); },
+
+  setSegmentMode(rootId, mode) {
+    const s = get();
+    const prior = s.segmentSettings[rootId] ?? { segmentRootId: rootId, mode: 'sequential' as const, holdBeats: 1 as const };
+    set({ segmentSettings: { ...s.segmentSettings, [rootId]: { ...prior, segmentRootId: rootId, mode } } });
+  },
+
+  setSegmentHold(rootId, holdBeats) {
+    const s = get();
+    const prior = s.segmentSettings[rootId] ?? { segmentRootId: rootId, mode: 'sequential' as const, holdBeats: 1 as const };
+    set({ segmentSettings: { ...s.segmentSettings, [rootId]: { ...prior, segmentRootId: rootId, holdBeats } } });
+  },
 
   play() {
     const s = get();

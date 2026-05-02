@@ -68,7 +68,7 @@ describe('advancePlayhead — sequential mode', () => {
     expect(emitted[0].midi).toBe(60);
   });
 
-  it('skips non-sequential modes', () => {
+  it('solid mode with single note fires at beat 0 with hold duration', () => {
     const beatSec = 0.5;
     const tiles: Record<TileId, Tile> = {
       t1: { id: 't1', kind: 'note', pitch: 60, bass: false, cell: { x: 0, y: 0 } },
@@ -77,7 +77,7 @@ describe('advancePlayhead — sequential mode', () => {
       { rootId: 't1', tiles: ['t1'], endsAtIntersection: false },
     ];
     const segmentSettings: Record<TileId, SegmentSettings> = {
-      t1: { segmentRootId: 't1', mode: 'solid', holdBeats: 1 },
+      t1: { segmentRootId: 't1', mode: 'solid', holdBeats: 2 },
     };
     const emitted: ScheduledNote[] = [];
     advancePlayhead({
@@ -89,7 +89,30 @@ describe('advancePlayhead — sequential mode', () => {
       windowEnd: 10,
       emit: note => emitted.push(note),
     });
-    expect(emitted).toHaveLength(0);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toMatchObject({ midi: 60, when: 0 });
+    // hold=2, beatSec=0.5 → duration = 0.5 * 2 * 0.95 = 0.95
+    expect(emitted[0].duration).toBeCloseTo(0.95, 5);
+  });
+});
+
+describe('advancePlayhead — solid chord mode (M11)', () => {
+  it('solid chord fires all segment notes at the same beat', () => {
+    const tiles = { a:n('a',0,0,60), b:n('b',1,0,64), c:n('c',2,0,67) };
+    const byCell = { '0,0':'a','1,0':'b','2,0':'c' };
+    const segs = computeSegments('a', tiles, byCell);
+    const settings = { a: { segmentRootId:'a', mode:'solid' as const, holdBeats: 2 as const } };
+
+    const events: any[] = [];
+    advancePlayhead({
+      segments: segs, segmentSettings: settings, tiles,
+      startTime: 0, beatSec: 0.5, windowEnd: 10,
+      emit: e => events.push(e),
+    });
+    expect(events.map(e => [e.midi, e.when]).sort()).toEqual([
+      [60, 0], [64, 0], [67, 0]
+    ]);
+    for (const e of events) expect(e.duration).toBeCloseTo(0.95 * 1.0, 3);  // hold=2, beatSec=0.5 → 0.95
   });
 });
 

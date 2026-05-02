@@ -31,19 +31,39 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
 
   while (heads.length) {
     const { seg, beat } = heads.shift()!;
-    const mode = segmentSettings[seg.rootId]?.mode ?? 'sequential';
-    if (mode !== 'sequential') continue; // chord modes added in M11
+    const settings = segmentSettings[seg.rootId];
+    const mode = settings?.mode ?? 'sequential';
+    const hold = settings?.holdBeats ?? 1;
+    let beatsConsumed = 0;
 
-    for (let i = 0; i < seg.tiles.length; i++) {
-      const t = tiles[seg.tiles[i]];
-      if (t.kind !== 'note') continue;
-      const when = startTime + (beat + i) * beatSec;
-      if (when >= windowEnd) return;
-      emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+    if (mode === 'sequential') {
+      for (let i = 0; i < seg.tiles.length; i++) {
+        const t = tiles[seg.tiles[i]];
+        if (t.kind !== 'note') continue;
+        const when = startTime + (beat + i) * beatSec;
+        if (when >= windowEnd) return;
+        emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+      }
+      beatsConsumed = seg.tiles.length;
+    } else {
+      // solid or arp
+      const noteTiles = seg.tiles.map(id => tiles[id]).filter(t => t.kind === 'note') as Extract<Tile, { kind: 'note' }>[];
+      const baseWhen = startTime + beat * beatSec;
+      if (baseWhen >= windowEnd) return;
+      const arpStep = mode === 'arp' ? Math.min(0.04, beatSec / Math.max(noteTiles.length, 1)) : 0;
+      noteTiles.forEach((t, i) => {
+        emit({
+          midi: t.pitch,
+          when: baseWhen + i * arpStep,
+          duration: beatSec * hold * 0.95,
+          velocity: 0.8,
+        });
+      });
+      beatsConsumed = hold;
     }
 
     if (seg.endsAtIntersection) {
-      const childBeat = beat + seg.tiles.length;
+      const childBeat = beat + beatsConsumed;
       for (const c of childrenOf(seg)) heads.push({ seg: c, beat: childBeat });
     }
   }

@@ -48,6 +48,7 @@ export function Canvas() {
   const handleTileClick = useCallback((id: string) => {
     if (draggedRef.current) return;
     const s = useAppStore.getState();
+    s.selectTile(id);                                  // open detail panel for this tile
     if (isEndpoint(id, s.tiles, s.byCell)) s.setStartTile(id);
   }, []);
 

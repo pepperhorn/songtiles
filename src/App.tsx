@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { useAppStore } from './state/store';
 import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
+import { DetailPanel } from './components/DetailPanel';
 
 function Inner() {
   const { tokens } = useTheme();
@@ -14,6 +15,7 @@ function Inner() {
   return (
     <div className="app-root min-h-screen" style={{ background: tokens.canvasBg, color: tokens.textPrimary }}>
       <Canvas />
+      <DetailPanel />
       <Tray />
       <button
         className="play-stop fixed top-4 right-4 px-4 py-2 rounded-full font-medium z-10"
