@@ -22,7 +22,8 @@ A mobile-first React music app where the user grows a single connected graph of 
 
 ### Deck & tray
 
-- **Deck**: 144 note tiles (12×12). Pitches uniform random over C2..C6. Repeat tiles are a small separate pool always available (TBD count, likely unlimited or 4 of each).
+- **Deck**: 144 note tiles (12×12). Pitches uniform random over C2..C6.
+- **Repeat pool**: a separate side-pocket of repeat **sets**. One set = one Repeat-Open + one Repeat-Close. The number of sets is a session **difficulty setting** (like tray capacity), chosen from `3 / 5 / 8 / 12` (default 5). Once both halves of a set have been pulled, that set is depleted; when the pool is empty, no more repeats until reset. Repeats never compete with notes for tray capacity — they have their own pull-from-pocket UI.
 - **Tray**: capacity 4/6/8/9/10/11/12 (user setting). Tiles taken back from a graph endpoint return to the tray. **Discard**: flick a tray tile left or right off the tray edge. **Refill**: button draws random tiles up to capacity.
 
 ## 2. Tile semantics
@@ -202,6 +203,8 @@ type SessionFile = {
   bpm: number;
   patchId: string;
   trayCapacity: 4|6|8|9|10|11|12;
+  repeatPoolSize: 3|5|8|12;              // total repeat sets per session
+  repeatSetsRemaining: number;           // sets still available to pull
   startTileId: TileId | null;
 
   // All tiles known to the session, addressed by id.
@@ -255,7 +258,6 @@ So the format errs on the side of explicit. The app does **not** infer deck cont
 
 ## 7. Open questions for the implementation plan
 
-- Repeat-tile pool: how many of each available, and are they part of the 144-deck or a separate always-available pool? (Leaning: separate, always available.)
 - Bass-mode pitch offset: −1 octave or −2? Or user-settable?
 - Capacity changes mid-game: does shrinking capacity force discards? (Leaning: capacity can only grow during a session, or shrinking is blocked while tray > new capacity.)
 - Initial start-tile UX: dedicated mode toggle vs. context menu on endpoint tap.
