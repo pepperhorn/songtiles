@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { computeSegments } from '../graph/segments';
@@ -23,6 +24,18 @@ export function DetailPanel() {
   const cur = settings[seg.rootId] ?? { segmentRootId: seg.rootId, mode: 'sequential' as const, holdBeats: 1 as const };
   const modes: SegmentMode[] = ['sequential', 'solid', 'arp'];
 
+  const optionBase: CSSProperties = {
+    minHeight: 32,
+    border: `1px solid ${tokens.gridDot}`,
+    color: tokens.textPrimary,
+    background: 'transparent',
+  };
+  const optionSelected: CSSProperties = {
+    background: tokens.tilePlayhead,
+    color: '#fff',
+    border: `1px solid ${tokens.tilePlayhead}`,
+  };
+
   return (
     <div
       className="detail-panel fixed left-4 right-4 md:left-auto md:right-4 md:w-80 p-4 rounded-2xl z-20"
@@ -37,7 +50,9 @@ export function DetailPanel() {
           {modes.map(m => (
             <button
               key={m}
-              className={`mode-btn px-3 py-1 rounded-full text-sm ${cur.mode === m ? 'bg-black/10' : ''}`}
+              type="button"
+              className="mode-btn px-3 py-1 rounded-full text-sm font-medium"
+              style={{ ...optionBase, ...(cur.mode === m ? optionSelected : {}) }}
               onClick={() => setMode(seg.rootId, m)}
             >
               {m}
@@ -52,7 +67,9 @@ export function DetailPanel() {
             {[1, 2, 3, 4].map(h => (
               <button
                 key={h}
-                className={`hold-btn px-3 py-1 rounded-full text-sm ${cur.holdBeats === h ? 'bg-black/10' : ''}`}
+                type="button"
+                className="hold-btn px-3 py-1 rounded-full text-sm font-medium"
+                style={{ ...optionBase, ...(cur.holdBeats === h ? optionSelected : {}) }}
                 onClick={() => setHold(seg.rootId, h as 1|2|3|4)}
               >
                 {h}
@@ -64,8 +81,12 @@ export function DetailPanel() {
       {selected && selectedTile?.kind === 'note' && (
         <div className="detail-row mt-3">
           <button
-            className="bass-toggle px-3 py-1 rounded-full text-sm"
-            style={{ background: selectedTile.bass ? tokens.canvasBg : 'transparent', border: `1px solid ${tokens.gridDot}` }}
+            type="button"
+            className="bass-toggle px-3 py-1 rounded-full text-sm font-medium"
+            style={{
+              ...optionBase,
+              ...(selectedTile.bass ? optionSelected : {}),
+            }}
             onClick={() => toggleBass(selected)}
           >
             {selectedTile.bass ? '↓ Bass on' : 'Flip to bass'}
