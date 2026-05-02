@@ -51,6 +51,10 @@ export function Canvas() {
   }, []);
 
   const handlePointerUp = useCallback(() => {
+    // Tap on empty canvas (no pan, no tile) → deselect to dismiss the detail panel.
+    if (panStart.current && !draggedRef.current) {
+      useAppStore.getState().selectTile(null);
+    }
     panStart.current = null;
   }, []);
 

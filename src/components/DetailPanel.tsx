@@ -40,11 +40,20 @@ export function DetailPanel() {
     <div
       className="detail-panel fixed left-4 right-4 md:left-auto md:right-4 md:w-80 p-4 rounded-2xl z-20"
       style={{
-        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)',
+        bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
         background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow,
       }}
     >
-      <div className="detail-row mb-3">
+      <button
+        type="button"
+        className="detail-close absolute top-1.5 right-2 w-8 h-8 grid place-items-center text-xl opacity-60 hover:opacity-100"
+        style={{ color: tokens.textPrimary }}
+        onClick={() => useAppStore.getState().selectTile(null)}
+        aria-label="close detail panel"
+      >
+        ×
+      </button>
+      <div className="detail-row mb-3 pr-8">
         <div className="detail-label text-sm opacity-60 mb-1">Mode</div>
         <div className="detail-mode-buttons flex gap-2">
           {modes.map(m => (
