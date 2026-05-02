@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
@@ -70,15 +71,21 @@ export function Canvas() {
 
     return {
       onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
-        startXY = { x: e.clientX, y: e.clientY };
+        // Capture coords + target up front. React's synthetic event nulls these
+        // after the handler returns, so reading e.clientX inside the timeout
+        // would yield 0/undefined and the wiggle wouldn't appear at the finger.
+        const cx = e.clientX;
+        const cy = e.clientY;
+        const target = e.currentTarget;
+        const pointerId = e.pointerId;
+        startXY = { x: cx, y: cy };
         timer = window.setTimeout(() => {
           timer = null;
-          // Only enter wiggle for endpoints; a non-endpoint tile can't be removed.
           const s = useAppStore.getState();
-          if (!isEndpoint(id, s.tiles, s.byCell)) return;
+          if (!isEndpoint(id, s.tiles, s.byCell)) return; // non-endpoints can't be removed
           captured = true;
-          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-          setWiggle({ id, x: e.clientX, y: e.clientY });
+          try { target.setPointerCapture?.(pointerId); } catch { /* ignored */ }
+          setWiggle({ id, x: cx, y: cy });
         }, LONG_PRESS_MS);
       },
       onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
@@ -96,7 +103,6 @@ export function Canvas() {
         cancel();
         if (!captured) return;
         captured = false;
-        // Decide: if released over the tray, return-or-discard. Else snap back.
         if (isOverTray(e.clientX, e.clientY)) {
           useAppStore.getState().returnTileFromCanvas(id);
         }
@@ -222,13 +228,14 @@ export function Canvas() {
         })}
       </div>
 
-      {wiggle && tiles[wiggle.id] && (
+      {wiggle && tiles[wiggle.id] && createPortal(
         <div
           className="wiggle-ghost fixed pointer-events-none z-50 songtile-wiggle"
           style={{ left: wiggle.x - CELL / 2, top: wiggle.y - CELL / 2 }}
         >
           <Tile tile={tiles[wiggle.id]} size={CELL} />
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
