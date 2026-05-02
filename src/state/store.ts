@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize, RepeatOpenTile, RepeatCloseTile } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize } from '../graph/types';
 import { cellKey } from '../graph/types';
 import { serialiseSession, deserialiseSession } from './persistence';
-import { newTileId } from '../utils/id';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
 import { createAudioEngine } from '../audio/engine';
@@ -57,7 +56,6 @@ export interface AppState {
   setSegmentMode(rootId: TileId, mode: SegmentMode): void;
   setSegmentHold(rootId: TileId, holdBeats: 1|2|3|4): void;
   toggleBass(id: TileId): void;
-  pullRepeatPair(): void;
   cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
@@ -87,13 +85,13 @@ const baseDefaults = {
 
 // Adapter: pull DeckRecord-shaped fields out of an AppState slice (note tiles only).
 function deckSlice(s: Pick<AppState, 'tiles'|'tray'|'deck'|'discardedCount'>): DeckRecord {
-  const noteTiles: Record<string, never> = {};
+  const tiles: Record<string, Tile> = {};
   for (const id of [...s.deck, ...s.tray]) {
     const t = s.tiles[id];
-    if (t && t.kind === 'note') (noteTiles as Record<string, Tile>)[id] = t;
+    if (t) tiles[id] = t;
   }
   return {
-    tiles: noteTiles as DeckRecord['tiles'],
+    tiles,
     deck: s.deck,
     tray: s.tray,
     discardedCount: s.discardedCount,
@@ -104,7 +102,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   ...baseDefaults,
 
   initSession({ trayCapacity, repeatPoolSize }) {
-    const d = drawTo(createDeck(), trayCapacity);
+    // Repeat wildcards live in the deck and are drawn to the tray like notes.
+    const d = drawTo(createDeck(repeatPoolSize), trayCapacity);
     set({
       ...baseDefaults,
       tiles: d.tiles, tray: d.tray, deck: d.deck, discardedCount: d.discardedCount,
@@ -193,20 +192,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get();
     const prior = s.segmentSettings[rootId] ?? { segmentRootId: rootId, mode: 'sequential' as const, holdBeats: 1 as const };
     set({ segmentSettings: { ...s.segmentSettings, [rootId]: { ...prior, segmentRootId: rootId, holdBeats } } });
-  },
-
-  pullRepeatPair() {
-    const s = get();
-    if (s.repeatSetsRemaining <= 0) return;
-    const openId = newTileId();
-    const closeId = newTileId();
-    const open: RepeatOpenTile = { id: openId, cell: null, kind: 'repeat-open', count: 1 };
-    const close: RepeatCloseTile = { id: closeId, cell: null, kind: 'repeat-close' };
-    set({
-      tiles: { ...s.tiles, [openId]: open, [closeId]: close },
-      tray: [...s.tray, openId, closeId],
-      repeatSetsRemaining: s.repeatSetsRemaining - 1,
-    });
   },
 
   cycleRepeatCount(id) {

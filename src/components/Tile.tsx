@@ -38,7 +38,7 @@ export function Tile({ tile, size = 96, dimmed = false }: { tile: TileT; size?: 
           boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
         }}
       >
-        <span className="repeat-glyph petaluma" style={{ fontSize: size * 0.7 }}>{glyph}</span>
+        <span className="repeat-glyph petaluma leading-none" style={{ fontSize: size * 0.42 }}>{glyph}</span>
         {countLabel && (
           <span
             className="repeat-count absolute bottom-1.5 right-2 text-xs font-medium"

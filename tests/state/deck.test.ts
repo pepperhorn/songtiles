@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createDeck, drawTo, returnToDeck, discardFromTray } from '../../src/state/deck';
 
 describe('deck', () => {
-  it('createDeck produces 144 note tiles with pitches in MIDI 36..84', () => {
+  it('createDeck() produces 144 note tiles with pitches in MIDI 36..84', () => {
     const r = createDeck();
     expect(r.deck).toHaveLength(144);
     expect(r.tray).toHaveLength(0);
@@ -10,10 +10,21 @@ describe('deck', () => {
     expect(Object.keys(r.tiles)).toHaveLength(144);
     for (const tile of Object.values(r.tiles)) {
       expect(tile.kind).toBe('note');
-      expect(tile.pitch).toBeGreaterThanOrEqual(36);
-      expect(tile.pitch).toBeLessThanOrEqual(84);
+      if (tile.kind === 'note') {
+        expect(tile.pitch).toBeGreaterThanOrEqual(36);
+        expect(tile.pitch).toBeLessThanOrEqual(84);
+      }
       expect(tile.cell).toBeNull();
     }
+  });
+
+  it('createDeck(5) shuffles 5 repeat-open + 5 repeat-close tiles into the deck', () => {
+    const r = createDeck(5);
+    expect(r.deck).toHaveLength(154);                                  // 144 notes + 10 repeats
+    const opens  = Object.values(r.tiles).filter(t => t.kind === 'repeat-open');
+    const closes = Object.values(r.tiles).filter(t => t.kind === 'repeat-close');
+    expect(opens).toHaveLength(5);
+    expect(closes).toHaveLength(5);
   });
 
   it('drawTo(record, 6) fills tray to 6 from the top of the deck', () => {

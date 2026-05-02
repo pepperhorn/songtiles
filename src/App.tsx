@@ -5,7 +5,6 @@ import { deserialiseSession } from './state/persistence';
 import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
 import { DetailPanel } from './components/DetailPanel';
-import { RepeatPocket } from './components/RepeatPocket';
 import { SetupModal } from './components/SetupModal';
 
 function Inner() {
@@ -73,7 +72,6 @@ function Inner() {
       <Canvas />
       <DetailPanel />
       <Tray />
-      <RepeatPocket />
 
       <div
         className="top-bar fixed top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-2 z-10"
@@ -106,19 +104,19 @@ function Inner() {
           style={{ ...btnStyle, pointerEvents: 'auto' }}
         >
           <button
-            className="bpm-down w-7 h-7 rounded-full font-semibold text-sm"
-            style={{ background: 'transparent', color: tokens.textPrimary }}
+            className="bpm-down w-9 h-9 rounded-full font-semibold text-base grid place-items-center"
+            style={{ background: tokens.canvasBg, color: tokens.textPrimary }}
             aria-label="bpm down"
             onClick={() => setBpm(bpm - 4)}
           >
             −
           </button>
-          <span className="bpm-value tabular-nums text-sm font-medium px-1" style={{ minWidth: 56, textAlign: 'center' }}>
+          <span className="bpm-value tabular-nums text-sm font-medium px-1" style={{ minWidth: 64, textAlign: 'center' }}>
             {bpm} bpm
           </span>
           <button
-            className="bpm-up w-7 h-7 rounded-full font-semibold text-sm"
-            style={{ background: 'transparent', color: tokens.textPrimary }}
+            className="bpm-up w-9 h-9 rounded-full font-semibold text-base grid place-items-center"
+            style={{ background: tokens.canvasBg, color: tokens.textPrimary }}
             aria-label="bpm up"
             onClick={() => setBpm(bpm + 4)}
           >
