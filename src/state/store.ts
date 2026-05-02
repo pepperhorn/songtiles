@@ -61,6 +61,7 @@ export interface AppState {
   cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
+  previewNote(midi: number): void;
   saveToFile(): void;
   loadFromFile(file: File): Promise<void>;
 }
@@ -244,6 +245,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     _scheduler = null;
     _player?.stopAll();
     set({ isPlaying: false });
+  },
+
+  previewNote(midi) {
+    if (!Number.isFinite(midi)) return;
+    if (typeof AudioContext === 'undefined') return; // jsdom / SSR
+    try {
+      const player = ensurePlayer();
+      player.setPatch(get().patchId).catch(() => {});
+      // Drop silently if the patch isn't loaded yet (engine short-circuits).
+      player.playNote({ midi, when: player.now(), duration: 0.6, velocity: 0.8 });
+    } catch {
+      // Audio init can fail (autoplay policy, no user gesture, etc.) — never crash the UI.
+    }
   },
 
   saveToFile() {

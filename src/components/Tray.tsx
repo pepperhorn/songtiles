@@ -26,6 +26,7 @@ export function Tray() {
   const refill = useAppStore(s => s.refillTray);
   const discard = useAppStore(s => s.discardTrayTile);
   const placeTileOnCell = useAppStore(s => s.placeTileOnCell);
+  const previewNote = useAppStore(s => s.previewNote);
   const capacity = useAppStore(s => s.trayCapacity);
 
   const [ghost, setGhost] = useState<DragState | null>(null);
@@ -45,6 +46,9 @@ export function Tray() {
         };
         const el = e.currentTarget as Element & { setPointerCapture?: (id: number) => void };
         el.setPointerCapture?.(e.pointerId);
+        // Preview the tile's pitch on touch (note tiles only).
+        const tile = tiles[id];
+        if (tile?.kind === 'note') previewNote(tile.pitch);
       },
       onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
         const d = dragRef.current;
@@ -68,11 +72,16 @@ export function Tray() {
         dragRef.current = null;
         setGhost(null);
 
-        // 1. If released over the canvas → try to place.
+        // 1. If released over the canvas → try to place AND preview pitch on drop.
         if (wasActive) {
           const cell = resolveCanvasCell(e.clientX, e.clientY);
           if (cell) {
+            const tile = tiles[id];
             placeTileOnCell(id, cell);
+            // Confirm placement only fires if it actually landed (adjacency etc.).
+            // The store either added the tile to byCell or no-op'd; check post-state.
+            const placed = useAppStore.getState().byCell[`${cell.x},${cell.y}`] === id;
+            if (placed && tile?.kind === 'note') previewNote(tile.pitch);
             return;
           }
         }
