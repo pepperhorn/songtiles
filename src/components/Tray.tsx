@@ -19,6 +19,8 @@ export function Tray() {
         <button
           key={id}
           className="tray-slot"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('text/songtile-id', id)}
           onDoubleClick={() => discard(id)}
           aria-label="tray tile"
         >
