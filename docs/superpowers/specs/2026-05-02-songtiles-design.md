@@ -187,7 +187,65 @@ The event list feeds smplr's sample-accurate scheduling (same pattern as dottl's
 - Vitest units for graph adjacency, segment computation, repeat pairing, scheduler event generation.
 - Manual QA on real mobile for gestures and audio timing.
 
-## 5. Out of scope (v1)
+## 5. Save / Load (session JSON)
+
+Users can save the current session to a JSON file and load it back to resume. Save/Load lives in the top bar (or an overflow menu) alongside Reset.
+
+### What's in the JSON
+
+The save format captures the **complete** session state so loading is fully deterministic without any inference:
+
+```ts
+type SessionFile = {
+  version: 1;
+  savedAt: string;                       // ISO timestamp
+  bpm: number;
+  patchId: string;
+  trayCapacity: 4|6|8|9|10|11|12;
+  startTileId: TileId | null;
+
+  // All tiles known to the session, addressed by id.
+  tiles: Record<TileId, Tile>;           // canvas + tray tiles together
+
+  // Where each known tile currently lives.
+  placements: {
+    canvas: TileId[];                    // ids on the graph; cell coords come from tiles[id].cell
+    tray:   TileId[];                    // ordered, so tray order is preserved
+    deck:   TileId[];                    // ids still undrawn, in draw order
+  };
+
+  // Tiles permanently removed from circulation via flick-to-discard.
+  // Stored as count only; discarded tiles are not retrievable.
+  discardedCount: number;
+
+  // Per-segment settings, keyed by segment-root tile id.
+  segmentSettings: Record<TileId, SegmentSettings>;
+};
+```
+
+Invariant: `canvas.length + tray.length + deck.length + discardedCount === 144` (plus repeat-tile bookkeeping if those live in a separate pool).
+
+### Why store the deck explicitly
+
+The remaining deck **cannot** be reliably reconstructed from the rest of the payload alone:
+
+- Discards are removed from circulation, so `deck = total − canvas − tray − discarded` would require also persisting discarded tile identities (or a discard count) — and we'd still lose the **draw order**, which matters because Refill draws from the top of the deck.
+- Storing `deck: TileId[]` directly in the JSON costs little, removes ambiguity, and makes the format trivially diffable and human-readable.
+
+So the format errs on the side of explicit. The app does **not** infer deck contents at load time; it trusts the file.
+
+### Load behaviour
+
+- File picker accepts a `.songtiles.json`. On load, the entire `AppState` is replaced (after a confirm dialog if the current session is non-empty).
+- `version` field allows future migrations; v1 loads fail loudly on unknown versions.
+- Validation: schema check, then invariant check on the 144-tile total. Surface a clear error toast on either failure.
+
+### Save behaviour
+
+- Generates `songtiles-YYYY-MM-DD-HHmm.json` and triggers a browser download.
+- Auto-save to localStorage (separate from manual save) continues independently so reloads of the tab restore the last state without needing a download.
+
+## 6. Out of scope (v1)
 
 - Multiple disconnected graphs / multi-canvas projects
 - Saving / sharing of compositions to cloud
@@ -195,7 +253,7 @@ The event list feeds smplr's sample-accurate scheduling (same pattern as dottl's
 - Audio recording / export
 - Undo/redo history beyond a small in-session ring buffer (TBD whether even that ships in v1)
 
-## 6. Open questions for the implementation plan
+## 7. Open questions for the implementation plan
 
 - Repeat-tile pool: how many of each available, and are they part of the 144-deck or a separate always-available pool? (Leaning: separate, always available.)
 - Bass-mode pitch offset: −1 octave or −2? Or user-settable?
