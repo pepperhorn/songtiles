@@ -14,6 +14,8 @@ function Inner() {
   const isPlaying = useAppStore(s => s.isPlaying);
   const play = useAppStore(s => s.play);
   const stop = useAppStore(s => s.stop);
+  const bpm = useAppStore(s => s.bpm);
+  const setBpm = useAppStore(s => s.setBpm);
   const saveToFile = useAppStore(s => s.saveToFile);
   const loadFromFile = useAppStore(s => s.loadFromFile);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +101,30 @@ function Inner() {
         >
           Load
         </button>
+        <div
+          className="bpm-control flex items-center gap-1 rounded-full px-2 py-1"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+        >
+          <button
+            className="bpm-down w-7 h-7 rounded-full font-semibold text-sm"
+            style={{ background: 'transparent', color: tokens.textPrimary }}
+            aria-label="bpm down"
+            onClick={() => setBpm(bpm - 4)}
+          >
+            −
+          </button>
+          <span className="bpm-value tabular-nums text-sm font-medium px-1" style={{ minWidth: 56, textAlign: 'center' }}>
+            {bpm} bpm
+          </span>
+          <button
+            className="bpm-up w-7 h-7 rounded-full font-semibold text-sm"
+            style={{ background: 'transparent', color: tokens.textPrimary }}
+            aria-label="bpm up"
+            onClick={() => setBpm(bpm + 4)}
+          >
+            +
+          </button>
+        </div>
         <button
           className="play-stop px-4 py-2 rounded-full font-semibold text-sm"
           style={{ ...btnStyle, pointerEvents: 'auto' }}

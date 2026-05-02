@@ -63,6 +63,7 @@ export interface AppState {
   stop(): void;
   previewNote(midi: number): void;
   initAudio(): void;
+  setBpm(bpm: number): void;
   saveToFile(): void;
   loadFromFile(file: File): Promise<void>;
 }
@@ -79,7 +80,7 @@ const baseDefaults = {
   trayCapacity: 8 as TrayCapacity,
   repeatPoolSize: 5 as RepeatPoolSize,
   repeatSetsRemaining: 5,
-  bpm: 96,
+  bpm: 120,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
 };
@@ -259,6 +260,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       // Audio init can fail (autoplay policy, no user gesture, etc.) — never crash the UI.
     }
+  },
+
+  setBpm(bpm) {
+    const clamped = Math.round(Math.min(240, Math.max(30, bpm)));
+    if (clamped !== get().bpm) set({ bpm: clamped });
   },
 
   initAudio() {
