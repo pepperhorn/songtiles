@@ -44,7 +44,9 @@ Double-tap the segment-first tile cycles hold length `1 → 2 → 3 → 4 → 1`
 
 ### Bass-mode flip (per individual tile)
 
-Long-press a tile to toggle bass mode. While the playhead is in the segment downstream of a bass-flipped tile, that tile's pitch sounds an octave or two lower **alongside** each melody note that plays, sustained until the next bass tile in the segment or until the segment ends. A segment with no bass tiles plays melody only. Bass tiles render visually inverted with a small octave-down arrow.
+Long-press a tile to toggle bass mode. While the playhead is in the segment downstream of a bass-flipped tile, that tile's pitch class sounds in a fixed **bass register** (clamped to **C2..B2**, i.e. MIDI 36..47) **alongside** each melody note that plays, sustained until the next bass tile in the segment or until the segment ends. A segment with no bass tiles plays melody only. Bass tiles render visually inverted with a small octave-down arrow.
+
+The clamp keeps the bass voice in a consistent sonic role regardless of the source tile's notated octave: e.g. flipping a `G5` tile produces a `G2` bass note alongside the melody, not a `G4`. The melody note itself is unaffected — the upper voice continues to sound at the tile's notated pitch.
 
 ### Repeat tiles
 
@@ -258,7 +260,6 @@ So the format errs on the side of explicit. The app does **not** infer deck cont
 
 ## 7. Open questions for the implementation plan
 
-- Bass-mode pitch offset: −1 octave or −2? Or user-settable?
 - Capacity changes mid-game: does shrinking capacity force discards? (Leaning: capacity can only grow during a session, or shrinking is blocked while tray > new capacity.)
 - Initial start-tile UX: dedicated mode toggle vs. context menu on endpoint tap.
 - ∞ repeat scheduling chunk size and look-ahead window.
