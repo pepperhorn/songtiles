@@ -11,6 +11,7 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
   const [trayCapacity, setTrayCapacity] = useState<TrayCapacity>(8);
   const [repeatPoolSize, setRepeatPoolSize] = useState<RepeatPoolSize>(5);
   const initSession = useAppStore(s => s.initSession);
+  const initAudio = useAppStore(s => s.initAudio);
 
   const optionBase: CSSProperties = {
     minWidth: 44,
@@ -75,6 +76,9 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
           className="setup-start w-full py-3 rounded-full font-semibold"
           style={{ background: tokens.tilePlayhead, color: '#fff' }}
           onClick={() => {
+            // The button click is a user gesture — unlock AudioContext and
+            // start downloading the default soundfont so first tile preview is instant.
+            initAudio();
             initSession({ trayCapacity, repeatPoolSize });
             try { localStorage.setItem('songtiles.firstRunDone', 'yes'); } catch {}
             onComplete();

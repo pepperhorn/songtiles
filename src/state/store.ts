@@ -62,6 +62,7 @@ export interface AppState {
   play(): void;
   stop(): void;
   previewNote(midi: number): void;
+  initAudio(): void;
   saveToFile(): void;
   loadFromFile(file: File): Promise<void>;
 }
@@ -258,6 +259,16 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch {
       // Audio init can fail (autoplay policy, no user gesture, etc.) — never crash the UI.
     }
+  },
+
+  initAudio() {
+    if (typeof AudioContext === 'undefined') return;
+    try {
+      const player = ensurePlayer();
+      // Kick off the soundfont download now (we're inside a user gesture, so
+      // the AudioContext unlocks here) — first tile preview will then be instant.
+      player.setPatch(get().patchId).catch(() => {});
+    } catch { /* never crash UI */ }
   },
 
   saveToFile() {
