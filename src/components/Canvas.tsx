@@ -1,8 +1,9 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
+import { setCanvasResolver } from '../state/dragController';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -77,6 +78,19 @@ export function Canvas() {
       onPointerCancel: () => { if (timer) { window.clearTimeout(timer); timer = null; } startXY = null; },
     };
   }, []);
+
+  // Register a resolver so the Tray can ask "what cell is this screen point over?"
+  useEffect(() => {
+    setCanvasResolver((cx, cy) => {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (!rect) return null;
+      if (cx < rect.left || cx > rect.right || cy < rect.top || cy > rect.bottom) return null;
+      const worldX = (cx - rect.left - pan.x) / zoom;
+      const worldY = (cy - rect.top - pan.y) / zoom;
+      return { x: Math.floor(worldX / CELL), y: Math.floor(worldY / CELL) };
+    });
+    return () => setCanvasResolver(null);
+  }, [pan, zoom]);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
