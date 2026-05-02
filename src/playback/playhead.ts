@@ -14,15 +14,37 @@ interface Args {
 
 export function advancePlayhead({ segments, segmentSettings, tiles, startTime, beatSec, windowEnd, emit }: Args) {
   if (segments.length === 0) return;
-  const seg = segments[0];
-  const mode = segmentSettings[seg.rootId]?.mode ?? 'sequential';
-  if (mode !== 'sequential') return;
 
-  for (let i = 0; i < seg.tiles.length; i++) {
-    const t = tiles[seg.tiles[i]];
-    if (t.kind !== 'note') continue;
-    const when = startTime + i * beatSec;
-    if (when >= windowEnd) return;
-    emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+  // tilesAreAdjacent helper to identify which child segments belong to which intersection.
+  const adj = (a?: Tile, b?: Tile) => {
+    if (!a?.cell || !b?.cell) return false;
+    return Math.abs(a.cell.x - b.cell.x) + Math.abs(a.cell.y - b.cell.y) === 1;
+  };
+  const childrenOf = (parent: Segment): Segment[] => {
+    if (!parent.endsAtIntersection) return [];
+    const last = parent.tiles[parent.tiles.length - 1];
+    return segments.filter(s => s.rootId !== parent.rootId && adj(tiles[last], tiles[s.rootId]));
+  };
+
+  const startSeg = segments[0];
+  const heads: Array<{ seg: Segment; beat: number }> = [{ seg: startSeg, beat: 0 }];
+
+  while (heads.length) {
+    const { seg, beat } = heads.shift()!;
+    const mode = segmentSettings[seg.rootId]?.mode ?? 'sequential';
+    if (mode !== 'sequential') continue; // chord modes added in M11
+
+    for (let i = 0; i < seg.tiles.length; i++) {
+      const t = tiles[seg.tiles[i]];
+      if (t.kind !== 'note') continue;
+      const when = startTime + (beat + i) * beatSec;
+      if (when >= windowEnd) return;
+      emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+    }
+
+    if (seg.endsAtIntersection) {
+      const childBeat = beat + seg.tiles.length;
+      for (const c of childrenOf(seg)) heads.push({ seg: c, beat: childBeat });
+    }
   }
 }
