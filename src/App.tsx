@@ -30,10 +30,7 @@ function Inner() {
   });
 
   useEffect(() => {
-    // If the modal is showing, let it handle initSession when the user presses Start.
     if (showSetup) return;
-
-    // Try restoring autosave; fall back to a fresh session.
     try {
       const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('songtiles.autosave') : null;
       if (raw) {
@@ -49,11 +46,24 @@ function Inner() {
         return;
       }
     } catch {}
-
-    // Edge case: firstRunDone is set but no autosave exists (e.g. after a manual reset).
-    // Start a fresh session without showing the modal.
     initSession({ trayCapacity: 8, repeatPoolSize: 5 });
   }, [initSession, showSetup]);
+
+  function newGame() {
+    if (!confirm('Start a new game? Your current canvas will be lost.')) return;
+    stop();
+    try {
+      localStorage.removeItem('songtiles.autosave');
+      localStorage.removeItem('songtiles.firstRunDone');
+    } catch {}
+    setShowSetup(true);
+  }
+
+  const btnStyle = {
+    background: tokens.topBarBg,
+    color: tokens.textPrimary,
+    boxShadow: tokens.tileShadow,
+  } as const;
 
   return (
     <div className="app-root min-h-screen" style={{ background: tokens.canvasBg, color: tokens.textPrimary }}>
@@ -62,27 +72,41 @@ function Inner() {
       <DetailPanel />
       <Tray />
       <RepeatPocket />
-      <button
-        className="play-stop fixed top-4 right-4 px-4 py-2 rounded-full font-medium z-10"
-        style={{ background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow }}
-        onClick={() => isPlaying ? stop() : play()}
+
+      <div
+        className="top-bar fixed top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-2 z-10"
+        style={{ pointerEvents: 'none' }}
       >
-        {isPlaying ? 'Stop' : 'Play'}
-      </button>
-      <button
-        className="save-btn fixed top-4 right-[400px] px-3 py-2 rounded-full font-medium z-10"
-        style={{ background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow }}
-        onClick={() => saveToFile()}
-      >
-        Save
-      </button>
-      <button
-        className="load-btn fixed top-4 right-[336px] px-3 py-2 rounded-full font-medium z-10"
-        style={{ background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow }}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        Load
-      </button>
+        <button
+          className="new-game-btn px-3 py-2 rounded-full font-medium text-sm"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          onClick={newGame}
+          aria-label="new game"
+        >
+          New
+        </button>
+        <button
+          className="save-btn px-3 py-2 rounded-full font-medium text-sm"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          onClick={() => saveToFile()}
+        >
+          Save
+        </button>
+        <button
+          className="load-btn px-3 py-2 rounded-full font-medium text-sm"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Load
+        </button>
+        <button
+          className="play-stop px-4 py-2 rounded-full font-semibold text-sm"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          onClick={() => isPlaying ? stop() : play()}
+        >
+          {isPlaying ? 'Stop' : 'Play'}
+        </button>
+      </div>
       <input
         ref={fileInputRef}
         type="file"

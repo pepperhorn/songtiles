@@ -8,7 +8,7 @@ export function RepeatPocket() {
   const pull = useAppStore(s => s.pullRepeatPair);
   return (
     <div
-      className="repeat-pocket fixed top-4 right-32 p-3 rounded-2xl flex items-center gap-3 z-10"
+      className="repeat-pocket fixed top-16 right-3 p-3 rounded-2xl flex items-center gap-3 z-10"
       style={{ background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow }}
     >
       <span className="petaluma text-3xl leading-none">{PETALUMA_REPEAT_OPEN}</span>
