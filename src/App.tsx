@@ -6,9 +6,10 @@ import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
 import { DetailPanel } from './components/DetailPanel';
 import { SetupModal } from './components/SetupModal';
+import { SoundPicker } from './components/SoundPicker';
 
 function Inner() {
-  const { tokens } = useTheme();
+  const { tokens, mode, setMode } = useTheme();
   const initSession = useAppStore(s => s.initSession);
   const isPlaying = useAppStore(s => s.isPlaying);
   const play = useAppStore(s => s.play);
@@ -123,6 +124,18 @@ function Inner() {
             +
           </button>
         </div>
+        <SoundPicker />
+        <button
+          className="theme-toggle px-3 py-2 rounded-full font-medium text-sm grid place-items-center"
+          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')}
+          aria-label={mode === 'dark' ? 'switch to light theme' : 'switch to dark theme'}
+          title={mode === 'dark' ? 'Light' : 'Dark'}
+        >
+          <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>
+            {mode === 'dark' ? '☀' : '☾'}
+          </span>
+        </button>
         <button
           className="play-stop px-4 py-2 rounded-full font-semibold text-sm"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
