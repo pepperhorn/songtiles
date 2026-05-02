@@ -78,14 +78,19 @@ The clamp keeps the bass voice in a consistent sonic role regardless of the sour
 
 ### Selecting the start tile
 
-- Endpoints get an outline halo. Tap an endpoint then choose "Set as start", or use a dedicated Start-pick mode where only endpoints are tappable. The start tile gets a ▶ marker.
+- Tap any endpoint to select it as the start tile. The selected endpoint gets a **halo** (and a ▶ marker) — this is the visible indicator of the choice. Only one endpoint is halo'd at a time; tapping a different endpoint moves the halo.
+- Pressing **Play** begins playback at the halo'd endpoint. Pressing it again stops.
+- If no endpoint is halo'd, Play is disabled (with a hint: "Tap an endpoint to choose where playback starts").
+- If the halo'd endpoint is later removed from the canvas, the halo is cleared and Play disables until a new endpoint is picked.
 
 ### Direct gestures on placed tiles
 
-- **Tap** segment-first tile → cycle segment mode. On any other tile → open detail panel.
-- **Double-tap** segment-first tile → cycle hold length (chord modes).
-- **Long-press** any tile → toggle bass mode.
-- **Tap** Repeat-Open → cycle loop count.
+- **Tap** an endpoint → halo it as the start tile (and open detail panel).
+- **Tap** a non-endpoint tile → open detail panel for that tile / its segment.
+- **Long-press** any note tile → quick-toggle bass mode (shortcut; same toggle is also in the detail panel).
+- **Tap** a Repeat-Open tile → cycle loop count `1× → 2× → 3× → 4× → ∞ → 1×`.
+
+All other per-tile / per-segment settings — segment mode (Sequential / Solid / Arp), hold length, bass flip, return-to-tray — live in the detail panel as labelled buttons rather than direct tile gestures. This keeps tile gestures discoverable and avoids gesture collisions on small screens.
 
 ### Visual style
 
@@ -260,5 +265,4 @@ So the format errs on the side of explicit. The app does **not** infer deck cont
 
 ## 7. Open questions for the implementation plan
 
-- Initial start-tile UX: dedicated mode toggle vs. context menu on endpoint tap.
 - ∞ repeat scheduling chunk size and look-ahead window.
