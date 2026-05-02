@@ -241,7 +241,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       const player = ensurePlayer();
       player.setPatch(get().patchId).catch(() => {});
       // Drop silently if the patch isn't loaded yet (engine short-circuits).
-      player.playNote({ midi, when: player.now(), duration: 0.6, velocity: 0.8 });
+      // Preview length scales with current bpm so a touch matches one beat at tempo.
+      const beatSec = 60 / get().bpm;
+      player.playNote({ midi, when: player.now(), duration: beatSec, velocity: 0.8 });
     } catch {
       // Audio init can fail (autoplay policy, no user gesture, etc.) — never crash the UI.
     }

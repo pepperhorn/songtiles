@@ -41,7 +41,7 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
       let activeBass: { midi: number; startBeat: number } | null = null;
       const closeBass = (endBeat: number) => {
         if (!activeBass) return;
-        const dur = (endBeat - activeBass.startBeat) * beatSec * 0.95;
+        const dur = (endBeat - activeBass.startBeat) * beatSec;
         if (dur > 0) {
           emit({
             midi: activeBass.midi,
@@ -74,7 +74,7 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
         if (t.kind !== 'note') return { beats: 0, aborted: false };
         const when = startTime + (beat + beatOffset) * beatSec;
         if (when >= windowEnd) return { beats: 0, aborted: true };
-        emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+        emit({ midi: t.pitch, when, duration: beatSec, velocity: 0.8 });
 
         if (t.bass) {
           closeBass(beat + beatOffset);
@@ -127,7 +127,7 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
         emit({
           midi: t.pitch,
           when: baseWhen + i * arpStep,
-          duration: beatSec * hold * 0.95,
+          duration: beatSec * hold,
           velocity: 0.8,
         });
       });
@@ -137,7 +137,7 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
         emit({
           midi: 36 + pc,
           when: baseWhen,
-          duration: beatSec * hold * 0.95,
+          duration: beatSec * hold,
           velocity: 0.7,
         });
       }

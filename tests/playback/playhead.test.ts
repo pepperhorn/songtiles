@@ -91,8 +91,8 @@ describe('advancePlayhead — sequential mode', () => {
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({ midi: 60, when: 0 });
-    // hold=2, beatSec=0.5 → duration = 0.5 * 2 * 0.95 = 0.95
-    expect(emitted[0].duration).toBeCloseTo(0.95, 5);
+    // hold=2, beatSec=0.5 → duration = 0.5 * 2 = 1.0
+    expect(emitted[0].duration).toBeCloseTo(1.0, 5);
   });
 });
 
@@ -112,7 +112,7 @@ describe('advancePlayhead — solid chord mode (M11)', () => {
     expect(events.map(e => [e.midi, e.when]).sort()).toEqual([
       [60, 0], [64, 0], [67, 0]
     ]);
-    for (const e of events) expect(e.duration).toBeCloseTo(0.95 * 1.0, 3);  // hold=2, beatSec=0.5 → 0.95
+    for (const e of events) expect(e.duration).toBeCloseTo(1.0, 3);  // hold=2, beatSec=0.5 → 1.0
   });
 });
 
@@ -136,11 +136,11 @@ describe('advancePlayhead — bass mode (M12)', () => {
     // beat 0: melody a=60
     // beat 1: melody b=79 + bass G2=43 starts (sustained)
     // beat 2: melody c=64
-    // bass closes at end of segment (beat 3) → duration 2 beats * 0.5 * 0.95 = 0.95
+    // bass closes at end of segment (beat 3) → duration 2 beats * 0.5 = 1.0
     const bass = events.find(e => e.midi === 43);
     expect(bass).toBeTruthy();
     expect(bass!.when).toBeCloseTo(0.5, 3);
-    expect(bass!.duration).toBeCloseTo(2 * 0.5 * 0.95, 3);
+    expect(bass!.duration).toBeCloseTo(1.0, 3);
 
     // Melody pitches still present
     expect(events.some(e => e.midi === 60)).toBe(true);
