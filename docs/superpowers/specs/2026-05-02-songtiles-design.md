@@ -95,11 +95,22 @@ All other per-tile / per-segment settings — segment mode (Sequential / Solid /
 
 ### Visual style
 
-- Square tiles ~96px at zoom 1, rounded corners, **simple 3D domino look** (raised drop shadow + subtle edge bevel; nothing skeuomorphic).
-- Background = dottl colour for the tile's pitch class. Note name (e.g. "C", "F♯") in bold Poppins, centred. Small octave subscript (e.g. ₃) in a corner.
-- Repeat tiles: neutral background with Petaluma repeat-start / repeat-end glyph.
-- Bass tiles: inverted/darker treatment + octave-down arrow icon.
-- Playhead: soft pulsing ring on the currently sounding tile. Multiple playheads visible after intersections.
+Overall feel: **Untitled Goose Game meets dominoes** — flat, playful, confident, slightly storybook. No gradients, no glassmorphism, no glossy highlights. Generous negative space, calm typography, warm dottl-driven palette.
+
+- **Flat surfaces, simple depth.** App chrome (top bar, tray, detail panel) is flat. Tiles get a single soft drop shadow and a 1px inner bevel only — just enough domino-ness to read as physical pieces, nothing skeuomorphic.
+- **Tiles** ~96px at zoom 1, generously rounded corners (~14px). Background = dottl colour for the tile's pitch class. Note name (e.g. "C", "F♯") in bold Poppins, centred. Small octave subscript (e.g. ₃) in a corner.
+- **Repeat tiles**: neutral background (light/dark-mode aware) with a Petaluma repeat-start or repeat-end glyph.
+- **Bass tiles**: same hue as the source pitch but with an inverted treatment (darker/saturated swap) plus a small octave-down arrow icon.
+- **Playhead**: soft pulsing ring on the currently sounding tile. Multiple playheads visible after intersections.
+
+### Light / dark modes
+
+The app supports light and dark themes, both built from the dottl note palette:
+
+- **Light mode**: warm off-white canvas (`#FAF7F2`-ish), ink-dark text, dottl colours at full saturation. Subtle paper-like grid dots.
+- **Dark mode**: deep neutral canvas (`#1A1A1F`-ish), high-contrast text, dottl colours at slightly desaturated / darkened tints so they don't glow against the dark background. Grid dots faded.
+- Theme follows the OS by default with a manual override in the top bar (☀/☾).
+- Token layer: a `theme.ts` file exposes semantic tokens (`canvas.bg`, `tile.shadow`, `text.primary`, `tile.note[pitchClass].bg`, etc.); components consume tokens, not raw colours, so light/dark switches are a single source change.
 
 ## 4. Architecture
 
@@ -176,7 +187,11 @@ src/
 
 ### Playback engine
 
-When the user hits Play, the scheduler walks the graph forward in time from the start tile and emits an event list:
+The scheduler uses a **rolling 2-second look-ahead window** (the standard Web Audio pattern). A timer ticks every ~25ms; on each tick the scheduler advances the playheads through the graph, emits any audio events whose start time falls within `[now, now + 2s]`, and hands them to smplr with explicit `when` timestamps. Events already scheduled stay scheduled; nothing is queued further ahead than the window.
+
+This is what makes ∞-repeat playback work without scheduling forever: the window simply keeps re-deriving the next slice of events from current state. **Live edits** during playback (BPM change, segment-mode flip, hold tweak, repeat-count change, even adding/removing tiles past the playhead's current position) take effect within ~2 seconds — anything not yet emitted is recomputed from the latest state on the next tick.
+
+When the user hits Play, the scheduler walks the graph forward in time from the halo'd start tile and emits events:
 
 1. Start one playhead at `startTileId`, beat = 0.
 2. At each step, the current tile fires its audio event(s) per its segment's mode. Advance beat by 1 (sequential), by `holdBeats` (chord modes), or by 0 (repeat tile).
@@ -266,4 +281,6 @@ So the format errs on the side of explicit. The app does **not** infer deck cont
 
 ## 7. Open questions for the implementation plan
 
-- ∞ repeat scheduling chunk size and look-ahead window.
+_All major design questions resolved. Smaller decisions (exact dottl
+token mappings, animation timings, default BPM, sample selection per
+patch) will land during implementation._
