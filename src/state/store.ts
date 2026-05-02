@@ -3,6 +3,22 @@ import type { Cell, Tile, TileId, SegmentSettings, TrayCapacity, RepeatPoolSize 
 import { cellKey } from '../graph/types';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
+import { createAudioEngine } from '../audio/engine';
+import { createSongtilesPlayer, type SongtilesPlayer } from '../audio/songtilesPlayer';
+import { createScheduler } from '../playback/scheduler';
+import { computeSegments } from '../graph/segments';
+
+// ---------------------------------------------------------------------------
+// Module-level singletons — survive React re-renders, not part of renderable state
+// ---------------------------------------------------------------------------
+let _player: SongtilesPlayer | null = null;
+let _scheduler: ReturnType<typeof createScheduler> | null = null;
+
+function ensurePlayer(): SongtilesPlayer {
+  if (_player) return _player;
+  _player = createSongtilesPlayer(createAudioEngine());
+  return _player;
+}
 
 export interface AppState {
   // All tiles known to the session, keyed by id (canvas + tray + deck).
@@ -32,6 +48,8 @@ export interface AppState {
   placeTileOnCell(id: TileId, cell: Cell): void;
   returnTileFromCanvas(id: TileId): void;
   setStartTile(id: TileId | null): void;
+  play(): void;
+  stop(): void;
 }
 
 const baseDefaults = {
@@ -138,4 +156,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setStartTile(id) { set({ startTileId: id }); },
+
+  play() {
+    const s = get();
+    if (!s.startTileId) return;
+    const player = ensurePlayer();
+    // Best-effort: load the patch on first play (no-op if already loaded).
+    player.setPatch(s.patchId).catch(() => {});
+    _scheduler?.stop();
+    _scheduler = createScheduler({
+      now: () => player.now(),
+      emit: ev => player.playNote({ midi: ev.midi, when: ev.when, duration: ev.duration, velocity: ev.velocity }),
+      getSnapshot: () => {
+        const st = get();
+        return {
+          segments: st.startTileId ? computeSegments(st.startTileId, st.tiles, st.byCell) : [],
+          segmentSettings: st.segmentSettings,
+          tiles: st.tiles,
+          bpm: st.bpm,
+        };
+      },
+    });
+    _scheduler.start();
+    set({ isPlaying: true });
+  },
+
+  stop() {
+    _scheduler?.stop();
+    _scheduler = null;
+    _player?.stopAll();
+    set({ isPlaying: false });
+  },
 }));
