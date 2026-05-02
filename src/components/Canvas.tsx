@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
+import { isEndpoint } from '../graph/adjacency';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -16,6 +17,7 @@ export function Canvas() {
   const [zoom, setZoom] = useState(1);
 
   const panStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  const draggedRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const placedTiles = Object.values(tiles).filter(t => t.cell != null);
@@ -23,20 +25,30 @@ export function Canvas() {
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     // Don't start pan if the click originated on a tile
     if ((e.target as Element).closest('.songtile')) return;
+    draggedRef.current = false;
     panStart.current = { px: e.clientX, py: e.clientY, ox: pan.x, oy: pan.y };
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
   }, [pan]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!panStart.current) return;
+    const dx = e.clientX - panStart.current.px;
+    const dy = e.clientY - panStart.current.py;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) draggedRef.current = true;
     setPan({
-      x: panStart.current.ox + (e.clientX - panStart.current.px),
-      y: panStart.current.oy + (e.clientY - panStart.current.py),
+      x: panStart.current.ox + dx,
+      y: panStart.current.oy + dy,
     });
   }, []);
 
   const handlePointerUp = useCallback(() => {
     panStart.current = null;
+  }, []);
+
+  const handleTileClick = useCallback((id: string) => {
+    if (draggedRef.current) return;
+    const s = useAppStore.getState();
+    if (isEndpoint(id, s.tiles, s.byCell)) s.setStartTile(id);
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -93,6 +105,7 @@ export function Canvas() {
               key={t.id}
               className="canvas-tile-wrapper absolute"
               style={{ left: cell.x * CELL, top: cell.y * CELL }}
+              onClick={() => handleTileClick(t.id)}
             >
               {isStart && (
                 <div

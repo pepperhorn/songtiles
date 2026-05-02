@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Cell, Tile, TileId, SegmentSettings, TrayCapacity, RepeatPoolSize } from '../graph/types';
 import { cellKey } from '../graph/types';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
+import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
 
 export interface AppState {
   // All tiles known to the session, keyed by id (canvas + tray + deck).
@@ -94,9 +95,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   placeTileOnCell(id, cell) {
     const s = get();
+    if (!s.tiles[id] || s.byCell[cellKey(cell)]) return;
+    if (!isAdjacentToGraph(cell, s.tiles, s.byCell)) return; // must touch existing graph
     const tile = s.tiles[id];
-    if (!tile) return;
-    if (s.byCell[cellKey(cell)]) return; // cell occupied
     set({
       tiles: { ...s.tiles, [id]: { ...tile, cell } },
       tray: s.tray.filter(x => x !== id),
@@ -109,14 +110,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get();
     const tile = s.tiles[id];
     if (!tile?.cell) return;
+    if (wouldDisconnect(id, s.tiles, s.byCell)) return; // block: not an endpoint
+
     const key = cellKey(tile.cell);
     const { [key]: _gone, ...byCell } = s.byCell;
     void _gone;
+
+    // Build the post-removal tile state for endpoint scanning.
+    const updatedTiles = { ...s.tiles, [id]: { ...tile, cell: null } };
+
+    let startTileId = s.startTileId;
+    if (startTileId === id) {
+      // Fallback: lowest (y, x) endpoint among remaining placed tiles.
+      const remaining = Object.values(updatedTiles).filter(t => t.cell);
+      const candidates = remaining
+        .filter(t => isEndpoint(t.id, updatedTiles, byCell))
+        .sort((a, b) => (a.cell!.y - b.cell!.y) || (a.cell!.x - b.cell!.x));
+      startTileId = candidates[0]?.id ?? null;
+    }
+
     set({
-      tiles: { ...s.tiles, [id]: { ...tile, cell: null } },
+      tiles: updatedTiles,
       byCell,
       tray: [...s.tray, id],
-      startTileId: s.startTileId === id ? null : s.startTileId,
+      startTileId,
     });
   },
 
