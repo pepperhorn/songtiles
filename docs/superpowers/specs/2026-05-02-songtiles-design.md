@@ -78,10 +78,11 @@ The clamp keeps the bass voice in a consistent sonic role regardless of the sour
 
 ### Selecting the start tile
 
-- Tap any endpoint to select it as the start tile. The selected endpoint gets a **halo** (and a ▶ marker) — this is the visible indicator of the choice. Only one endpoint is halo'd at a time; tapping a different endpoint moves the halo.
+- The **first tile placed** is automatically halo'd as the default start tile. The halo (plus a ▶ marker) is the visible indicator.
+- The user can move the halo at any time by tapping a different endpoint; only one endpoint is halo'd at a time.
 - Pressing **Play** begins playback at the halo'd endpoint. Pressing it again stops.
-- If no endpoint is halo'd, Play is disabled (with a hint: "Tap an endpoint to choose where playback starts").
-- If the halo'd endpoint is later removed from the canvas, the halo is cleared and Play disables until a new endpoint is picked.
+- If the halo'd endpoint is later removed from the canvas, the halo automatically falls back to another endpoint (deterministic rule: the tile with the lowest cell `(y, x)`). The user can override at any time by tapping another endpoint.
+- If the graph has zero tiles, Play is disabled.
 
 ### Direct gestures on placed tiles
 
