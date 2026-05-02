@@ -36,6 +36,11 @@ export function createAudioEngine(): AudioEngine {
 
   function getCtx(): AudioContext {
     if (!ctx) ctx = new AudioContext();
+    // iOS/Safari (and sometimes desktop) start the context suspended even after
+    // the AudioContext is constructed inside a user gesture. Kick it awake.
+    if (ctx.state === 'suspended') {
+      void ctx.resume().catch(() => {});
+    }
     return ctx;
   }
 
@@ -66,11 +71,14 @@ export function createAudioEngine(): AudioEngine {
     playNote(ev: PlayNoteEvent): void {
       // If the instrument hasn't loaded yet, drop the event (acceptable for v1)
       if (!instrument) return;
+      // smplr expects MIDI velocity (0..127). Callers pass a 0..1 normalised value
+      // (or 0..127 directly) — scale the small numbers up so we don't fire silent notes.
+      const v = ev.velocity > 1 ? ev.velocity : Math.round(ev.velocity * 127);
       instrument.start({
         note: ev.midi,
         time: ev.when,
         duration: ev.duration,
-        velocity: ev.velocity,
+        velocity: v,
       });
     },
 

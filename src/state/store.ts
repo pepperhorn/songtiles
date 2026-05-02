@@ -265,8 +265,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (typeof AudioContext === 'undefined') return;
     try {
       const player = ensurePlayer();
-      // Kick off the soundfont download now (we're inside a user gesture, so
-      // the AudioContext unlocks here) — first tile preview will then be instant.
+      // Force AudioContext construction *synchronously* inside this user gesture
+      // (player.now() touches engine.getAudioContext()). Without this the context
+      // is constructed later inside the async setPatch chain, and iOS/Safari
+      // refuses to unlock it.
+      player.now();
+      // Kick off the soundfont download — first tile preview will be instant.
       player.setPatch(get().patchId).catch(() => {});
     } catch { /* never crash UI */ }
   },
