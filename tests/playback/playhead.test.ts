@@ -116,6 +116,39 @@ describe('advancePlayhead — solid chord mode (M11)', () => {
   });
 });
 
+describe('advancePlayhead — bass mode (M12)', () => {
+  it('bass-flipped tile emits a sustained bass voice clamped to C2..B2', () => {
+    // Single segment a,b,c. b is bass-flipped (pitch G5 = 79).
+    const tiles = {
+      a: n('a',0,0,60),
+      b: { ...n('b',1,0,79), bass: true } as Tile,
+      c: n('c',2,0,64),
+    };
+    const byCell = { '0,0':'a','1,0':'b','2,0':'c' };
+    const segs = computeSegments('a', tiles, byCell);
+    const events: any[] = [];
+    advancePlayhead({
+      segments: segs, segmentSettings: {}, tiles,
+      startTime: 0, beatSec: 0.5, windowEnd: 10, emit: e => events.push(e),
+    });
+
+    // Expected:
+    // beat 0: melody a=60
+    // beat 1: melody b=79 + bass G2=43 starts (sustained)
+    // beat 2: melody c=64
+    // bass closes at end of segment (beat 3) → duration 2 beats * 0.5 * 0.95 = 0.95
+    const bass = events.find(e => e.midi === 43);
+    expect(bass).toBeTruthy();
+    expect(bass!.when).toBeCloseTo(0.5, 3);
+    expect(bass!.duration).toBeCloseTo(2 * 0.5 * 0.95, 3);
+
+    // Melody pitches still present
+    expect(events.some(e => e.midi === 60)).toBe(true);
+    expect(events.some(e => e.midi === 79)).toBe(true);
+    expect(events.some(e => e.midi === 64)).toBe(true);
+  });
+});
+
 describe('advancePlayhead — branching at intersection (M10)', () => {
   it('forks playheads at an intersection: both branches fire phase-locked', () => {
     // a-b-c with intersection at c, branches d (south) and e (north)

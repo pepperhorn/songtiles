@@ -12,6 +12,8 @@ export function DetailPanel() {
   const settings = useAppStore(s => s.segmentSettings);
   const setMode = useAppStore(s => s.setSegmentMode);
   const setHold = useAppStore(s => s.setSegmentHold);
+  const toggleBass = useAppStore(s => s.toggleBass);
+  const selectedTile = useAppStore(s => (s.selectedTileId ? s.tiles[s.selectedTileId] : null));
   if (!selected || !start) return null;
 
   const segs = computeSegments(start, tiles, byCell);
@@ -57,6 +59,17 @@ export function DetailPanel() {
               </button>
             ))}
           </div>
+        </div>
+      )}
+      {selected && selectedTile?.kind === 'note' && (
+        <div className="detail-row mt-3">
+          <button
+            className="bass-toggle px-3 py-1 rounded-full text-sm"
+            style={{ background: selectedTile.bass ? tokens.canvasBg : 'transparent', border: `1px solid ${tokens.gridDot}` }}
+            onClick={() => toggleBass(selected)}
+          >
+            {selectedTile.bass ? '↓ Bass on' : 'Flip to bass'}
+          </button>
         </div>
       )}
     </div>

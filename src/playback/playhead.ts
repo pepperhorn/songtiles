@@ -37,13 +37,35 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
     let beatsConsumed = 0;
 
     if (mode === 'sequential') {
+      let activeBass: { midi: number; startBeat: number } | null = null;
+      const closeBass = (endBeat: number) => {
+        if (!activeBass) return;
+        const dur = (endBeat - activeBass.startBeat) * beatSec * 0.95;
+        if (dur > 0) {
+          emit({
+            midi: activeBass.midi,
+            when: startTime + activeBass.startBeat * beatSec,
+            duration: dur,
+            velocity: 0.7,
+          });
+        }
+        activeBass = null;
+      };
+
       for (let i = 0; i < seg.tiles.length; i++) {
         const t = tiles[seg.tiles[i]];
         if (t.kind !== 'note') continue;
         const when = startTime + (beat + i) * beatSec;
-        if (when >= windowEnd) return;
+        if (when >= windowEnd) { closeBass(beat + i); return; }
         emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
+
+        if (t.bass) {
+          closeBass(beat + i);                  // close prior bass at this tile
+          const pc = ((t.pitch % 12) + 12) % 12;
+          activeBass = { midi: 36 + pc, startBeat: beat + i }; // clamp to C2..B2
+        }
       }
+      closeBass(beat + seg.tiles.length);
       beatsConsumed = seg.tiles.length;
     } else {
       // solid or arp
@@ -59,6 +81,16 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
           velocity: 0.8,
         });
       });
+      const firstBassTile = noteTiles.find(t => t.bass);
+      if (firstBassTile) {
+        const pc = ((firstBassTile.pitch % 12) + 12) % 12;
+        emit({
+          midi: 36 + pc,
+          when: baseWhen,
+          duration: beatSec * hold * 0.95,
+          velocity: 0.7,
+        });
+      }
       beatsConsumed = hold;
     }
 

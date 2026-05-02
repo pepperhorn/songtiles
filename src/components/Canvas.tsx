@@ -19,6 +19,7 @@ export function Canvas() {
   const panStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const draggedRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const suppressClickRef = useRef(false);
 
   const placedTiles = Object.values(tiles).filter(t => t.cell != null);
 
@@ -47,9 +48,34 @@ export function Canvas() {
 
   const handleTileClick = useCallback((id: string) => {
     if (draggedRef.current) return;
+    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     const s = useAppStore.getState();
     s.selectTile(id);                                  // open detail panel for this tile
     if (isEndpoint(id, s.tiles, s.byCell)) s.setStartTile(id);
+  }, []);
+
+  const attachLongPressHandlers = useCallback((id: string) => {
+    let timer: number | null = null;
+    let startXY: { x: number; y: number } | null = null;
+
+    return {
+      onPointerDown: (e: React.PointerEvent) => {
+        startXY = { x: e.clientX, y: e.clientY };
+        timer = window.setTimeout(() => {
+          suppressClickRef.current = true;
+          useAppStore.getState().toggleBass(id);
+          timer = null;
+        }, 450);
+      },
+      onPointerMove: (e: React.PointerEvent) => {
+        if (!startXY || !timer) return;
+        const dx = Math.abs(e.clientX - startXY.x);
+        const dy = Math.abs(e.clientY - startXY.y);
+        if (dx > 5 || dy > 5) { window.clearTimeout(timer); timer = null; }
+      },
+      onPointerUp: () => { if (timer) { window.clearTimeout(timer); timer = null; } startXY = null; },
+      onPointerCancel: () => { if (timer) { window.clearTimeout(timer); timer = null; } startXY = null; },
+    };
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -107,6 +133,7 @@ export function Canvas() {
               className="canvas-tile-wrapper absolute"
               style={{ left: cell.x * CELL, top: cell.y * CELL }}
               onClick={() => handleTileClick(t.id)}
+              {...attachLongPressHandlers(t.id)}
             >
               {isStart && (
                 <div

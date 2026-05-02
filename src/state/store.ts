@@ -54,6 +54,7 @@ export interface AppState {
   selectTile(id: TileId | null): void;
   setSegmentMode(rootId: TileId, mode: SegmentMode): void;
   setSegmentHold(rootId: TileId, holdBeats: 1|2|3|4): void;
+  toggleBass(id: TileId): void;
   play(): void;
   stop(): void;
 }
@@ -165,6 +166,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   setStartTile(id) { set({ startTileId: id }); },
 
   selectTile(id) { set({ selectedTileId: id }); },
+
+  toggleBass(id) {
+    const s = get();
+    const t = s.tiles[id];
+    if (!t || t.kind !== 'note') return;
+    set({ tiles: { ...s.tiles, [id]: { ...t, bass: !t.bass } } });
+  },
 
   setSegmentMode(rootId, mode) {
     const s = get();
