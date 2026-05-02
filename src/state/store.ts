@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize, RepeatOpenTile, RepeatCloseTile } from '../graph/types';
 import { cellKey } from '../graph/types';
+import { newTileId } from '../utils/id';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
 import { createAudioEngine } from '../audio/engine';
@@ -55,6 +56,8 @@ export interface AppState {
   setSegmentMode(rootId: TileId, mode: SegmentMode): void;
   setSegmentHold(rootId: TileId, holdBeats: 1|2|3|4): void;
   toggleBass(id: TileId): void;
+  pullRepeatPair(): void;
+  cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
 }
@@ -184,6 +187,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get();
     const prior = s.segmentSettings[rootId] ?? { segmentRootId: rootId, mode: 'sequential' as const, holdBeats: 1 as const };
     set({ segmentSettings: { ...s.segmentSettings, [rootId]: { ...prior, segmentRootId: rootId, holdBeats } } });
+  },
+
+  pullRepeatPair() {
+    const s = get();
+    if (s.repeatSetsRemaining <= 0) return;
+    const openId = newTileId();
+    const closeId = newTileId();
+    const open: RepeatOpenTile = { id: openId, cell: null, kind: 'repeat-open', count: 1 };
+    const close: RepeatCloseTile = { id: closeId, cell: null, kind: 'repeat-close' };
+    set({
+      tiles: { ...s.tiles, [openId]: open, [closeId]: close },
+      tray: [...s.tray, openId, closeId],
+      repeatSetsRemaining: s.repeatSetsRemaining - 1,
+    });
+  },
+
+  cycleRepeatCount(id) {
+    const s = get();
+    const t = s.tiles[id];
+    if (!t || t.kind !== 'repeat-open') return;
+    const order: Array<1|2|3|4|'inf'> = [1,2,3,4,'inf',1];
+    const next = order[order.indexOf(t.count) + 1];
+    set({ tiles: { ...s.tiles, [id]: { ...t, count: next } } });
   },
 
   play() {

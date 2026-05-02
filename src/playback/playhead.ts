@@ -1,6 +1,7 @@
 import type { Segment } from '../graph/segments';
 import type { Tile, TileId, SegmentSettings } from '../graph/types';
 import type { ScheduleEmit } from './events';
+import { findRepeatSpans } from '../graph/repeats';
 
 interface Args {
   segments: Segment[];
@@ -52,21 +53,70 @@ export function advancePlayhead({ segments, segmentSettings, tiles, startTime, b
         activeBass = null;
       };
 
-      for (let i = 0; i < seg.tiles.length; i++) {
-        const t = tiles[seg.tiles[i]];
-        if (t.kind !== 'note') continue;
-        const when = startTime + (beat + i) * beatSec;
-        if (when >= windowEnd) { closeBass(beat + i); return; }
+      // Build path items for repeat expansion
+      type PathItem = { id: string; kind: 'note' | 'repeat-open' | 'repeat-close'; count?: 1|2|3|4|'inf' };
+      const path: PathItem[] = seg.tiles.map(id => {
+        const t = tiles[id];
+        if (t.kind === 'note') return { id, kind: 'note' as const };
+        if (t.kind === 'repeat-open') return { id, kind: 'repeat-open' as const, count: t.count };
+        return { id, kind: 'repeat-close' as const };
+      });
+      const spans = findRepeatSpans(path);
+
+      let b = 0;
+
+      // Fire a single note tile at beat offset `beatOffset`, return beats consumed (0 or 1)
+      // Returns aborted=true if windowEnd reached
+      const fireIndex = (i: number, beatOffset: number): { beats: number; aborted: boolean } => {
+        const item = path[i];
+        if (item.kind !== 'note') return { beats: 0, aborted: false };
+        const t = tiles[item.id];
+        if (t.kind !== 'note') return { beats: 0, aborted: false };
+        const when = startTime + (beat + beatOffset) * beatSec;
+        if (when >= windowEnd) return { beats: 0, aborted: true };
         emit({ midi: t.pitch, when, duration: beatSec * 0.95, velocity: 0.8 });
 
         if (t.bass) {
-          closeBass(beat + i);                  // close prior bass at this tile
+          closeBass(beat + beatOffset);
           const pc = ((t.pitch % 12) + 12) % 12;
-          activeBass = { midi: 36 + pc, startBeat: beat + i }; // clamp to C2..B2
+          activeBass = { midi: 36 + pc, startBeat: beat + beatOffset };
         }
+        return { beats: 1, aborted: false };
+      };
+
+      // Recursive helper: fire indices in [from, to) range, expanding spans within.
+      // Returns { beatsAdded, aborted }
+      const fireRange = (from: number, to: number, beatStart: number): { beatsAdded: number; aborted: boolean } => {
+        let localB = beatStart;
+        let i = from;
+        while (i < to) {
+          const span = spans.find(s => s.openIndex === i && s.closeIndex < to);
+          if (span) {
+            // Expand this span
+            const reps = span.count === 'inf' ? 1 : span.count;
+            for (let r = 0; r < reps; r++) {
+              const inner = fireRange(span.openIndex + 1, span.closeIndex, localB);
+              if (inner.aborted) return { beatsAdded: localB - beatStart + inner.beatsAdded, aborted: true };
+              localB += inner.beatsAdded;
+            }
+            i = span.closeIndex + 1;
+            continue;
+          }
+          // Non-span item (or repeat-open/close without a matching span within range)
+          const res = fireIndex(i, localB);
+          if (res.aborted) { closeBass(beat + localB); return { beatsAdded: localB - beatStart, aborted: true }; }
+          localB += res.beats;
+          i++;
+        }
+        return { beatsAdded: localB - beatStart, aborted: false };
+      };
+
+      const result = fireRange(0, path.length, 0);
+      if (!result.aborted) {
+        b = result.beatsAdded;
+        closeBass(beat + b);
       }
-      closeBass(beat + seg.tiles.length);
-      beatsConsumed = seg.tiles.length;
+      beatsConsumed = b;
     } else {
       // solid or arp
       const noteTiles = seg.tiles.map(id => tiles[id]).filter(t => t.kind === 'note') as Extract<Tile, { kind: 'note' }>[];

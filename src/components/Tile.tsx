@@ -1,6 +1,7 @@
 import { useTheme } from '../theme/ThemeProvider';
 import { midiToOctave, midiToPitchClass } from '../constants/noteColors';
 import type { Tile as TileT } from '../graph/types';
+import { PETALUMA_REPEAT_OPEN, PETALUMA_REPEAT_CLOSE } from '../constants/petaluma';
 
 export function Tile({ tile, size = 96, dimmed = false }: { tile: TileT; size?: number; dimmed?: boolean }) {
   const { tokens } = useTheme();
@@ -23,16 +24,30 @@ export function Tile({ tile, size = 96, dimmed = false }: { tile: TileT; size?: 
       </div>
     );
   }
-  // Repeat tiles get their own visual in M13; placeholder until then.
-  return (
-    <div
-      className="songtile repeat-tile grid place-items-center"
-      style={{
-        width: size, height: size, borderRadius: 14, background: tokens.trayBg, color: tokens.textPrimary,
-        boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
-      }}
-    >
-      <span>{tile.kind === 'repeat-open' ? '⟦' : '⟧'}</span>
-    </div>
-  );
+  if (tile.kind === 'repeat-open' || tile.kind === 'repeat-close') {
+    const glyph = tile.kind === 'repeat-open' ? PETALUMA_REPEAT_OPEN : PETALUMA_REPEAT_CLOSE;
+    const countLabel = tile.kind === 'repeat-open'
+      ? (tile.count === 'inf' ? '∞' : `${tile.count}×`)
+      : null;
+    return (
+      <div
+        className="songtile repeat-tile relative grid place-items-center select-none"
+        style={{
+          width: size, height: size, borderRadius: 14,
+          background: tokens.trayBg, color: tokens.textPrimary,
+          boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
+        }}
+      >
+        <span className="repeat-glyph petaluma" style={{ fontSize: size * 0.7 }}>{glyph}</span>
+        {countLabel && (
+          <span
+            className="repeat-count absolute bottom-1.5 right-2 text-xs font-medium"
+            style={{ color: tokens.textPrimary }}
+          >
+            {countLabel}
+          </span>
+        )}
+      </div>
+    );
+  }
 }

@@ -149,6 +149,31 @@ describe('advancePlayhead — bass mode (M12)', () => {
   });
 });
 
+describe('advancePlayhead — repeat tiles (M13)', () => {
+  it('finite repeat replays the section count times (open/close consume 0 beats)', () => {
+    // Path tiles in order: a, OPEN(×3), b, CLOSE, d
+    // Expect a, b, b, b, d at beats 0,1,2,3,4 (open/close zero-cost)
+    const tiles: Record<TileId, Tile> = {
+      a: n('a',0,0,60),
+      o: { id:'o', cell:{x:1,y:0}, kind:'repeat-open', count: 3 } as Tile,
+      b: n('b',2,0,62),
+      c: { id:'c', cell:{x:3,y:0}, kind:'repeat-close' } as Tile,
+      d: n('d',4,0,64),
+    };
+    const byCell: Record<string, TileId> = { '0,0':'a','1,0':'o','2,0':'b','3,0':'c','4,0':'d' };
+    const segs = computeSegments('a', tiles, byCell);
+    const events: any[] = [];
+    advancePlayhead({
+      segments: segs, segmentSettings: {}, tiles,
+      startTime: 0, beatSec: 0.5, windowEnd: 100, emit: e => events.push(e),
+    });
+    const noteEvents = events.filter(e => e.midi >= 60 && e.midi <= 64);
+    // Expect 5 notes: a (60), b (62) ×3, d (64)
+    expect(noteEvents.map(e => e.midi)).toEqual([60, 62, 62, 62, 64]);
+    expect(noteEvents.map(e => e.when)).toEqual([0, 0.5, 1.0, 1.5, 2.0]);
+  });
+});
+
 describe('advancePlayhead — branching at intersection (M10)', () => {
   it('forks playheads at an intersection: both branches fire phase-locked', () => {
     // a-b-c with intersection at c, branches d (south) and e (north)

@@ -5,3 +5,10 @@
 
 html, body, #root { height: 100%; }
 body { @apply font-sans antialiased; }
+
+@font-face {
+  font-family: 'Petaluma';
+  src: url('/fonts/Petaluma.otf') format('opentype');
+  font-display: swap;
+}
+.petaluma { font-family: 'Petaluma', 'Bravura', serif; }

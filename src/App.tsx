@@ -4,6 +4,7 @@ import { useAppStore } from './state/store';
 import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
 import { DetailPanel } from './components/DetailPanel';
+import { RepeatPocket } from './components/RepeatPocket';
 
 function Inner() {
   const { tokens } = useTheme();
@@ -17,6 +18,7 @@ function Inner() {
       <Canvas />
       <DetailPanel />
       <Tray />
+      <RepeatPocket />
       <button
         className="play-stop fixed top-4 right-4 px-4 py-2 rounded-full font-medium z-10"
         style={{ background: tokens.topBarBg, color: tokens.textPrimary, boxShadow: tokens.tileShadow }}
