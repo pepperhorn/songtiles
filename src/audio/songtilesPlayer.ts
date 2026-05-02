@@ -21,9 +21,7 @@ export interface SongtilesPlayer {
   readonly engine: AudioEngine;
 }
 
-export function createSongtilesPlayer(): SongtilesPlayer {
-  const engine = createAudioEngine();
-
+export function createSongtilesPlayer(engine: AudioEngine = createAudioEngine()): SongtilesPlayer {
   return {
     playNote(ev: PlayNoteEvent): void {
       engine.playNote(ev);
