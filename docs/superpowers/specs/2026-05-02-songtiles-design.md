@@ -30,21 +30,21 @@ A mobile-first React music app where the user grows a single connected graph of 
 
 ### Per-segment playback mode
 
-Set by tapping the segment's first tile (start tile, or first tile after an intersection):
+Each segment has a mode:
 
 1. **Sequential** (default) — one tile per beat down the segment.
 2. **Solid chord** — all tiles in the segment fire simultaneously when the playhead enters the segment; consumes 1 beat (or `holdBeats`).
 3. **Arpeggiated chord** — same notes fired in fast sub-beat succession then sustained as a chord; consumes 1 beat (or `holdBeats`).
 
-Tap cycles: Sequential → Solid → Arp → Sequential.
+The mode is set in the **detail panel** (opened by tapping any tile in the segment). The current mode is shown as a small badge on the segment-root tile (the start tile, or the first tile of a segment after an intersection).
 
 ### Hold (chord modes only)
 
-Double-tap the segment-first tile cycles hold length `1 → 2 → 3 → 4 → 1` beats. The chord sustains for `holdBeats` before the playhead moves on. Visualised as a small badge on the segment-root tile.
+The detail panel exposes a hold-length control for chord-mode segments: `1 / 2 / 3 / 4` beats. The chord sustains for `holdBeats` before the playhead moves on. Hold has no effect on Sequential segments. The chosen value is shown as a small numeric badge on the segment-root tile.
 
 ### Bass-mode flip (per individual tile)
 
-Long-press a tile to toggle bass mode. While the playhead is in the segment downstream of a bass-flipped tile, that tile's pitch class sounds in a fixed **bass register** (clamped to **C2..B2**, i.e. MIDI 36..47) **alongside** each melody note that plays, sustained until the next bass tile in the segment or until the segment ends. A segment with no bass tiles plays melody only. Bass tiles render visually inverted with a small octave-down arrow.
+A tile can be flipped to bass mode either via the detail panel toggle or as a power-user shortcut by long-pressing the tile. While the playhead is in the segment downstream of a bass-flipped tile, that tile's pitch class sounds in a fixed **bass register** (clamped to **C2..B2**, i.e. MIDI 36..47) **alongside** each melody note that plays, sustained until the next bass tile in the segment or until the segment ends. A segment with no bass tiles plays melody only. Bass tiles render visually inverted with a small octave-down arrow.
 
 The clamp keeps the bass voice in a consistent sonic role regardless of the source tile's notated octave: e.g. flipping a `G5` tile produces a `G2` bass note alongside the melody, not a `G4`. The melody note itself is unaffected — the upper voice continues to sound at the tile's notated pitch.
 
