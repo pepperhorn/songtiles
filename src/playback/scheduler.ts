@@ -26,6 +26,7 @@ export interface Scheduler {
 
 export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): Scheduler {
   let timerId: ReturnType<typeof setInterval> | null = null;
+  let startTime = 0;
   const emitted = new Set<string>();
 
   function tick() {
@@ -34,8 +35,6 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
     const snapshot = getSnapshot();
     const beatSec = 60 / snapshot.bpm;
 
-    // We schedule from currentTime as startTime so notes are relative to now
-    // Dedupe via (midi, when) key
     const wrappedEmit: ScheduleEmit = (n: ScheduledNote) => {
       const key = `${n.midi}@${n.when.toFixed(4)}`;
       if (emitted.has(key)) return;
@@ -47,7 +46,7 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
       segments: snapshot.segments,
       segmentSettings: snapshot.segmentSettings,
       tiles: snapshot.tiles,
-      startTime: currentTime,
+      startTime,
       beatSec,
       windowEnd,
       emit: wrappedEmit,
@@ -57,7 +56,9 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
   return {
     start() {
       if (timerId !== null) return;
-      tick(); // immediate first tick
+      startTime = now();          // captured once; subsequent ticks share this anchor
+      emitted.clear();
+      tick();                     // immediate first tick
       timerId = setInterval(tick, TICK_MS);
     },
 

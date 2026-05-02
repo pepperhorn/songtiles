@@ -74,17 +74,18 @@ export function createAudioEngine(): AudioEngine {
       // smplr expects MIDI velocity (0..127). Callers pass a 0..1 normalised value
       // (or 0..127 directly) — scale the small numbers up so we don't fire silent notes.
       const v = ev.velocity > 1 ? ev.velocity : Math.round(ev.velocity * 127);
-      // Schedule via start({ duration }) AND call the returned StopFn at when+duration.
-      // The StopFn enforces the note-off even if the underlying soundfont's release
-      // tail is long; ampRelease keeps the fade-out brief so beats sound discrete.
-      const stopFn = instrument.start({
+      // duration triggers smplr's internal note-off at when + duration. We also
+      // shorten ampRelease so the natural soundfont tail doesn't bleed into the
+      // next beat. Don't call the returned StopFn here — calling it appears to
+      // cancel the still-pending note, producing a ringing/retrigger effect on
+      // each scheduler tick.
+      instrument.start({
         note: ev.midi,
         time: ev.when,
         duration: ev.duration,
         velocity: v,
-        ampRelease: 0.06,
+        ampRelease: 0.08,
       });
-      stopFn(ev.when + ev.duration);
     },
 
     stopAll(): void {
