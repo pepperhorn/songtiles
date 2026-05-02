@@ -20,7 +20,8 @@ export function Canvas() {
   const panStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const draggedRef = useRef(false);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const suppressClickRef = useRef(false);
+  const lastTapRef = useRef<{ id: string; t: number } | null>(null);
+  const DOUBLE_TAP_MS = 300;
 
   const placedTiles = Object.values(tiles).filter(t => t.cell != null);
 
@@ -49,34 +50,27 @@ export function Canvas() {
 
   const handleTileClick = useCallback((id: string) => {
     if (draggedRef.current) return;
-    if (suppressClickRef.current) { suppressClickRef.current = false; return; }
     const s = useAppStore.getState();
-    s.selectTile(id);                                  // open detail panel for this tile
+    const t = s.tiles[id];
+    if (!t) return;
+
+    // Double-tap detection: second tap on same tile within 300ms toggles bass
+    // (note tiles only). The first tap of the pair has already fired its
+    // single-tap actions, which is fine — they're idempotent.
+    const now = performance.now();
+    const last = lastTapRef.current;
+    if (last && last.id === id && now - last.t < DOUBLE_TAP_MS) {
+      lastTapRef.current = null;
+      if (t.kind === 'note') s.toggleBass(id);
+      else if (t.kind === 'repeat-open') s.cycleRepeatCount(id);
+      return;
+    }
+    lastTapRef.current = { id, t: now };
+
+    // Single-tap actions: preview pitch, select, halo if endpoint.
+    if (t.kind === 'note') s.previewNote(t.pitch);
+    s.selectTile(id);
     if (isEndpoint(id, s.tiles, s.byCell)) s.setStartTile(id);
-  }, []);
-
-  const attachLongPressHandlers = useCallback((id: string) => {
-    let timer: number | null = null;
-    let startXY: { x: number; y: number } | null = null;
-
-    return {
-      onPointerDown: (e: React.PointerEvent) => {
-        startXY = { x: e.clientX, y: e.clientY };
-        timer = window.setTimeout(() => {
-          suppressClickRef.current = true;
-          useAppStore.getState().toggleBass(id);
-          timer = null;
-        }, 450);
-      },
-      onPointerMove: (e: React.PointerEvent) => {
-        if (!startXY || !timer) return;
-        const dx = Math.abs(e.clientX - startXY.x);
-        const dy = Math.abs(e.clientY - startXY.y);
-        if (dx > 5 || dy > 5) { window.clearTimeout(timer); timer = null; }
-      },
-      onPointerUp: () => { if (timer) { window.clearTimeout(timer); timer = null; } startXY = null; },
-      onPointerCancel: () => { if (timer) { window.clearTimeout(timer); timer = null; } startXY = null; },
-    };
   }, []);
 
   // Register a resolver so the Tray can ask "what cell is this screen point over?"
@@ -147,7 +141,6 @@ export function Canvas() {
               className="canvas-tile-wrapper absolute"
               style={{ left: cell.x * CELL, top: cell.y * CELL }}
               onClick={() => handleTileClick(t.id)}
-              {...attachLongPressHandlers(t.id)}
             >
               {isStart && (
                 <div
