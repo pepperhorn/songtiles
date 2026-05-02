@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
-import { resolveCanvasCell } from '../state/dragController';
+import { resolveCanvasCell, setTrayHitTest } from '../state/dragController';
 
 const SLOT_SIZE = 72;
 const DRAG_THRESHOLD = 10;       // px before a press becomes a drag
@@ -31,6 +31,18 @@ export function Tray() {
 
   const [ghost, setGhost] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const trayRootRef = useRef<HTMLDivElement>(null);
+
+  // Register a tray-hit-test so the Canvas's wiggle/drag-off flow can detect
+  // when an endpoint tile is dragged onto the tray.
+  useEffect(() => {
+    setTrayHitTest((cx, cy) => {
+      const r = trayRootRef.current?.getBoundingClientRect();
+      if (!r) return false;
+      return cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+    });
+    return () => setTrayHitTest(null);
+  }, []);
 
   function attachSlotHandlers(id: string) {
     return {
@@ -105,6 +117,7 @@ export function Tray() {
 
   return (
     <div
+      ref={trayRootRef}
       className="tray-root fixed bottom-0 left-0 right-0 px-4 pb-4 pt-3 flex items-center gap-3 overflow-x-auto"
       style={{ background: tokens.trayBg, touchAction: 'none' }}
     >

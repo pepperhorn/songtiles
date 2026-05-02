@@ -12,3 +12,15 @@ body { @apply font-sans antialiased; }
   font-display: swap;
 }
 .petaluma { font-family: 'Petaluma', 'Bravura', serif; }
+
+/* iOS-style wiggle for tiles in long-press deletion mode. */
+@keyframes songtile-wiggle {
+  0%   { transform: rotate(-2.5deg); }
+  50%  { transform: rotate(2.5deg);  }
+  100% { transform: rotate(-2.5deg); }
+}
+.songtile-wiggle {
+  animation: songtile-wiggle 0.18s ease-in-out infinite;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}

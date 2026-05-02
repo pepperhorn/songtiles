@@ -3,7 +3,7 @@ import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
-import { setCanvasResolver } from '../state/dragController';
+import { setCanvasResolver, isOverTray } from '../state/dragController';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -22,6 +22,11 @@ export function Canvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<{ id: string; t: number } | null>(null);
   const DOUBLE_TAP_MS = 300;
+  const LONG_PRESS_MS = 450;
+
+  // Wiggle/drag-off-canvas state. When non-null, the user has long-pressed an
+  // endpoint tile and is now in "deletion drag" mode.
+  const [wiggle, setWiggle] = useState<{ id: string; x: number; y: number } | null>(null);
 
   const placedTiles = Object.values(tiles).filter(t => t.cell != null);
 
@@ -46,6 +51,63 @@ export function Canvas() {
 
   const handlePointerUp = useCallback(() => {
     panStart.current = null;
+  }, []);
+
+  // Long-press handler: starts a 450ms timer; if the tile is an endpoint when
+  // the timer fires, the tile enters wiggle/drag-off mode. The pointer keeps
+  // capture so subsequent moves come back here regardless of where the finger
+  // travels. On release: drop on tray → return-or-discard via the store; drop
+  // anywhere else → snap back (just exit wiggle).
+  const attachLongPressDragOff = useCallback((id: string) => {
+    let timer: number | null = null;
+    let startXY: { x: number; y: number } | null = null;
+    let captured = false;
+
+    const cancel = () => {
+      if (timer) { window.clearTimeout(timer); timer = null; }
+      startXY = null;
+    };
+
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+        startXY = { x: e.clientX, y: e.clientY };
+        timer = window.setTimeout(() => {
+          timer = null;
+          // Only enter wiggle for endpoints; a non-endpoint tile can't be removed.
+          const s = useAppStore.getState();
+          if (!isEndpoint(id, s.tiles, s.byCell)) return;
+          captured = true;
+          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+          setWiggle({ id, x: e.clientX, y: e.clientY });
+        }, LONG_PRESS_MS);
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+        if (timer && startXY) {
+          const dx = Math.abs(e.clientX - startXY.x);
+          const dy = Math.abs(e.clientY - startXY.y);
+          if (dx > 6 || dy > 6) cancel();
+          return;
+        }
+        if (captured) {
+          setWiggle({ id, x: e.clientX, y: e.clientY });
+        }
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+        cancel();
+        if (!captured) return;
+        captured = false;
+        // Decide: if released over the tray, return-or-discard. Else snap back.
+        if (isOverTray(e.clientX, e.clientY)) {
+          useAppStore.getState().returnTileFromCanvas(id);
+        }
+        setWiggle(null);
+      },
+      onPointerCancel: () => {
+        cancel();
+        captured = false;
+        setWiggle(null);
+      },
+    };
   }, []);
 
   const handleTileClick = useCallback((id: string) => {
@@ -135,12 +197,14 @@ export function Canvas() {
         {placedTiles.map(t => {
           const cell = t.cell!;
           const isStart = t.id === startTileId;
+          const isWiggling = wiggle?.id === t.id;
           return (
             <div
               key={t.id}
-              className="canvas-tile-wrapper absolute"
-              style={{ left: cell.x * CELL, top: cell.y * CELL }}
+              className={`canvas-tile-wrapper absolute ${isWiggling ? 'songtile-wiggle' : ''}`}
+              style={{ left: cell.x * CELL, top: cell.y * CELL, opacity: isWiggling ? 0.35 : 1 }}
               onClick={() => handleTileClick(t.id)}
+              {...attachLongPressDragOff(t.id)}
             >
               {isStart && (
                 <div
@@ -157,6 +221,15 @@ export function Canvas() {
           );
         })}
       </div>
+
+      {wiggle && tiles[wiggle.id] && (
+        <div
+          className="wiggle-ghost fixed pointer-events-none z-50 songtile-wiggle"
+          style={{ left: wiggle.x - CELL / 2, top: wiggle.y - CELL / 2 }}
+        >
+          <Tile tile={tiles[wiggle.id]} size={CELL} />
+        </div>
+      )}
     </div>
   );
 }

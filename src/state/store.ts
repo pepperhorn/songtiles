@@ -150,25 +150,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     const { [key]: _gone, ...byCell } = s.byCell;
     void _gone;
 
-    // Build the post-removal tile state for endpoint scanning.
-    const updatedTiles = { ...s.tiles, [id]: { ...tile, cell: null } };
-
+    // Endpoint scanning needs the post-removal byCell shape.
     let startTileId = s.startTileId;
     if (startTileId === id) {
-      // Fallback: lowest (y, x) endpoint among remaining placed tiles.
-      const remaining = Object.values(updatedTiles).filter(t => t.cell);
+      const remaining = Object.values(s.tiles).filter(t => t.cell && t.id !== id);
       const candidates = remaining
-        .filter(t => isEndpoint(t.id, updatedTiles, byCell))
+        .filter(t => isEndpoint(t.id, s.tiles, byCell))
         .sort((a, b) => (a.cell!.y - b.cell!.y) || (a.cell!.x - b.cell!.x));
       startTileId = candidates[0]?.id ?? null;
     }
 
-    set({
-      tiles: updatedTiles,
-      byCell,
-      tray: [...s.tray, id],
-      startTileId,
-    });
+    if (s.tray.length >= s.trayCapacity) {
+      // Tray is full → discard the tile entirely (drop from registry, count as discarded).
+      const { [id]: _dropped, ...tiles } = s.tiles;
+      void _dropped;
+      set({
+        tiles,
+        byCell,
+        startTileId,
+        discardedCount: s.discardedCount + 1,
+      });
+    } else {
+      // Return to tray.
+      set({
+        tiles: { ...s.tiles, [id]: { ...tile, cell: null } },
+        byCell,
+        tray: [...s.tray, id],
+        startTileId,
+      });
+    }
   },
 
   setStartTile(id) { set({ startTileId: id }); },

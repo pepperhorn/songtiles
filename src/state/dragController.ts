@@ -1,19 +1,26 @@
 import type { Cell } from '../graph/types';
 
 /**
- * Bridge between Tray (drag source) and Canvas (drop target). The Canvas
- * registers a resolver that maps a screen point to the world cell under it
- * (or null if the point is outside the canvas). The Tray calls
- * `resolveCanvasCell` on pointer-up to decide whether to place the tile.
+ * Bridges Tray (drag source) and Canvas (drop target) for tile placement,
+ * plus a reverse hit-test so the Canvas can ask "is this point over the tray?"
+ * when the user drags an endpoint tile back off the canvas.
  */
-type Resolver = (clientX: number, clientY: number) => Cell | null;
+type CellResolver = (clientX: number, clientY: number) => Cell | null;
+type TrayHitTest = (clientX: number, clientY: number) => boolean;
 
-let resolver: Resolver | null = null;
+let canvasResolver: CellResolver | null = null;
+let trayHitTest: TrayHitTest | null = null;
 
-export function setCanvasResolver(r: Resolver | null): void {
-  resolver = r;
+export function setCanvasResolver(r: CellResolver | null): void {
+  canvasResolver = r;
+}
+export function resolveCanvasCell(clientX: number, clientY: number): Cell | null {
+  return canvasResolver ? canvasResolver(clientX, clientY) : null;
 }
 
-export function resolveCanvasCell(clientX: number, clientY: number): Cell | null {
-  return resolver ? resolver(clientX, clientY) : null;
+export function setTrayHitTest(t: TrayHitTest | null): void {
+  trayHitTest = t;
+}
+export function isOverTray(clientX: number, clientY: number): boolean {
+  return trayHitTest ? trayHitTest(clientX, clientY) : false;
 }
