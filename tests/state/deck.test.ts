@@ -3,14 +3,12 @@ import { createDeck, drawTo, returnToDeck, discardFromTray } from '../../src/sta
 
 describe('deck', () => {
   it('createDeck produces 144 note tiles with pitches in MIDI 36..84', () => {
-    const record = createDeck();
-
-    expect(record.order).toHaveLength(144);
-    expect(record.tray).toHaveLength(0);
-    expect(record.discardedCount).toBe(0);
-    expect(record.registry.size).toBe(144);
-
-    for (const tile of record.registry.values()) {
+    const r = createDeck();
+    expect(r.deck).toHaveLength(144);
+    expect(r.tray).toHaveLength(0);
+    expect(r.discardedCount).toBe(0);
+    expect(Object.keys(r.tiles)).toHaveLength(144);
+    for (const tile of Object.values(r.tiles)) {
       expect(tile.kind).toBe('note');
       expect(tile.pitch).toBeGreaterThanOrEqual(36);
       expect(tile.pitch).toBeLessThanOrEqual(84);
@@ -19,34 +17,29 @@ describe('deck', () => {
   });
 
   it('drawTo(record, 6) fills tray to 6 from the top of the deck', () => {
-    const record = createDeck();
-    const topSix = record.order.slice(0, 6);
-    const filled = drawTo(record, 6);
-
+    const r = createDeck();
+    const topSix = r.deck.slice(0, 6);
+    const filled = drawTo(r, 6);
     expect(filled.tray).toHaveLength(6);
     expect(filled.tray).toEqual(topSix);
-    expect(filled.order).toHaveLength(138);
+    expect(filled.deck).toHaveLength(138);
   });
 
   it('returnToDeck adds the tile id back to the bottom of the deck', () => {
-    const record = createDeck();
-    const filled = drawTo(record, 6);
+    const filled = drawTo(createDeck(), 6);
     const returnedId = filled.tray[0];
-    const afterReturn = returnToDeck(filled, returnedId);
-
-    expect(afterReturn.tray).not.toContain(returnedId);
-    expect(afterReturn.order[afterReturn.order.length - 1]).toBe(returnedId);
-    expect(afterReturn.order).toHaveLength(139); // 138 + 1 returned
+    const after = returnToDeck(filled, returnedId);
+    expect(after.tray).not.toContain(returnedId);
+    expect(after.deck[after.deck.length - 1]).toBe(returnedId);
+    expect(after.deck).toHaveLength(139);
   });
 
-  it('discardFromTray removes tile from registry and increments discardedCount', () => {
-    const record = createDeck();
-    const filled = drawTo(record, 6);
+  it('discardFromTray removes tile from tiles registry and increments discardedCount', () => {
+    const filled = drawTo(createDeck(), 6);
     const discardedId = filled.tray[0];
-    const afterDiscard = discardFromTray(filled, discardedId);
-
-    expect(afterDiscard.tray).not.toContain(discardedId);
-    expect(afterDiscard.registry.has(discardedId)).toBe(false);
-    expect(afterDiscard.discardedCount).toBe(1);
+    const after = discardFromTray(filled, discardedId);
+    expect(after.tray).not.toContain(discardedId);
+    expect(after.tiles[discardedId]).toBeUndefined();
+    expect(after.discardedCount).toBe(1);
   });
 });

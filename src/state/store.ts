@@ -1,199 +1,124 @@
 import { create } from 'zustand';
-import type { Cell, TileId, TrayCapacity, RepeatPoolSize, Tile } from '../graph/types';
-import type { DeckRecord } from './deck';
-import { createDeck, drawTo, returnToDeck, discardFromTray } from './deck';
-import { newTileId } from '../utils/id';
-import type { RepeatOpenTile, RepeatCloseTile } from '../graph/types';
-
-// ---------------------------------------------------------------------------
-// Repeat-tile pool helpers
-// ---------------------------------------------------------------------------
-
-function buildRepeatPool(size: RepeatPoolSize): Map<TileId, RepeatOpenTile | RepeatCloseTile> {
-  const pool = new Map<TileId, RepeatOpenTile | RepeatCloseTile>();
-  for (let i = 0; i < size; i++) {
-    const openId = newTileId();
-    const closeId = newTileId();
-    const open: RepeatOpenTile = { id: openId, kind: 'repeat-open', count: 2, cell: null };
-    const close: RepeatCloseTile = { id: closeId, kind: 'repeat-close', cell: null };
-    pool.set(openId, open);
-    pool.set(closeId, close);
-  }
-  return pool;
-}
-
-// ---------------------------------------------------------------------------
-// Canvas state
-// ---------------------------------------------------------------------------
-
-export interface CanvasState {
-  /** cell key → tile id placed there */
-  cellMap: Map<string, TileId>;
-  /** tile id → Cell for placed tiles */
-  placedTiles: Map<TileId, Cell>;
-  /** the tile id that is "start" (halo) */
-  startTileId: TileId | null;
-}
-
-// ---------------------------------------------------------------------------
-// AppState
-// ---------------------------------------------------------------------------
+import type { Cell, Tile, TileId, SegmentSettings, TrayCapacity, RepeatPoolSize } from '../graph/types';
+import { cellKey } from '../graph/types';
+import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 
 export interface AppState {
-  // Session config
+  // All tiles known to the session, keyed by id (canvas + tray + deck).
+  tiles: Record<TileId, Tile>;
+  // "x,y" → tile id, for adjacency lookup.
+  byCell: Record<string, TileId>;
+  // Halo'd start tile (auto-set to the first placed tile).
+  startTileId: TileId | null;
+  // Per-segment settings keyed by segment-root tile id (filled in M11).
+  segmentSettings: Record<TileId, SegmentSettings>;
+  // Tray + deck + discard accounting.
+  tray: TileId[];
+  deck: TileId[];
+  discardedCount: number;
+  // Session config / playback state.
   trayCapacity: TrayCapacity;
   repeatPoolSize: RepeatPoolSize;
-
-  // Deck + tray
-  deck: DeckRecord;
-
-  // Repeat tile pool
-  repeatPool: Map<TileId, RepeatOpenTile | RepeatCloseTile>;
-  /** How many full repeat-set pairs remain available */
   repeatSetsRemaining: number;
-
-  // Canvas
-  canvas: CanvasState;
-
-  // All tiles (note tiles live in deck.registry; repeat tiles live in repeatPool)
-  // Helper accessor
-  getTile: (id: TileId) => Tile | undefined;
+  bpm: number;
+  patchId: string;
+  isPlaying: boolean;
 
   // Actions
-  initSession: (opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }) => void;
-  refillTray: () => void;
-  discardTrayTile: (id: TileId) => void;
-  placeTileOnCell: (id: TileId, cell: Cell) => void;
-  returnTileFromCanvas: (id: TileId) => void;
-  setStartTile: (id: TileId) => void;
+  initSession(opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }): void;
+  refillTray(): void;
+  discardTrayTile(id: TileId): void;
+  placeTileOnCell(id: TileId, cell: Cell): void;
+  returnTileFromCanvas(id: TileId): void;
+  setStartTile(id: TileId | null): void;
 }
 
-// ---------------------------------------------------------------------------
-// Store
-// ---------------------------------------------------------------------------
+const baseDefaults = {
+  tiles: {} as Record<TileId, Tile>,
+  byCell: {} as Record<string, TileId>,
+  startTileId: null as TileId | null,
+  segmentSettings: {} as Record<TileId, SegmentSettings>,
+  tray: [] as TileId[],
+  deck: [] as TileId[],
+  discardedCount: 0,
+  trayCapacity: 8 as TrayCapacity,
+  repeatPoolSize: 5 as RepeatPoolSize,
+  repeatSetsRemaining: 5,
+  bpm: 96,
+  patchId: 'acoustic_grand_piano',
+  isPlaying: false,
+};
 
-import { cellKey } from '../graph/types';
+// Adapter: pull DeckRecord-shaped fields out of an AppState slice (note tiles only).
+function deckSlice(s: Pick<AppState, 'tiles'|'tray'|'deck'|'discardedCount'>): DeckRecord {
+  const noteTiles: Record<string, never> = {};
+  for (const id of [...s.deck, ...s.tray]) {
+    const t = s.tiles[id];
+    if (t && t.kind === 'note') (noteTiles as Record<string, Tile>)[id] = t;
+  }
+  return {
+    tiles: noteTiles as DeckRecord['tiles'],
+    deck: s.deck,
+    tray: s.tray,
+    discardedCount: s.discardedCount,
+  };
+}
 
 export const useAppStore = create<AppState>((set, get) => ({
-  trayCapacity: 6,
-  repeatPoolSize: 5,
-  deck: createDeck(),
-  repeatPool: new Map(),
-  repeatSetsRemaining: 0,
-  canvas: {
-    cellMap: new Map(),
-    placedTiles: new Map(),
-    startTileId: null,
-  },
+  ...baseDefaults,
 
-  getTile(id: TileId): Tile | undefined {
-    const state = get();
-    return state.deck.registry.get(id) ?? state.repeatPool.get(id);
-  },
-
-  // -------------------------------------------------------------------------
   initSession({ trayCapacity, repeatPoolSize }) {
-    const freshDeck = createDeck();
-    const filled = drawTo(freshDeck, trayCapacity);
-    const repeatPool = buildRepeatPool(repeatPoolSize);
-
+    const d = drawTo(createDeck(), trayCapacity);
     set({
-      trayCapacity,
-      repeatPoolSize,
-      deck: filled,
-      repeatPool,
-      repeatSetsRemaining: repeatPoolSize,
-      canvas: {
-        cellMap: new Map(),
-        placedTiles: new Map(),
-        startTileId: null,
-      },
+      ...baseDefaults,
+      tiles: d.tiles, tray: d.tray, deck: d.deck, discardedCount: d.discardedCount,
+      trayCapacity, repeatPoolSize, repeatSetsRemaining: repeatPoolSize,
+      bpm: get().bpm, patchId: get().patchId,
     });
   },
 
-  // -------------------------------------------------------------------------
   refillTray() {
-    set(state => ({
-      deck: drawTo(state.deck, state.trayCapacity),
-    }));
+    const s = get();
+    const d = drawTo(deckSlice(s), s.trayCapacity);
+    // Merge new note tiles back into the full tile registry (preserves repeat tiles).
+    set({ tiles: { ...s.tiles, ...d.tiles }, tray: d.tray, deck: d.deck });
   },
 
-  // -------------------------------------------------------------------------
-  discardTrayTile(id: TileId) {
-    set(state => ({
-      deck: discardFromTray(state.deck, id),
-    }));
+  discardTrayTile(id) {
+    const s = get();
+    const d = discardFromTray(deckSlice(s), id);
+    const { [id]: _gone, ...remaining } = s.tiles;
+    void _gone;
+    set({ tiles: remaining, tray: d.tray, deck: d.deck, discardedCount: d.discardedCount });
   },
 
-  // -------------------------------------------------------------------------
-  placeTileOnCell(id: TileId, cell: Cell) {
-    set(state => {
-      const key = cellKey(cell);
-      const newCellMap = new Map(state.canvas.cellMap);
-      const newPlacedTiles = new Map(state.canvas.placedTiles);
-
-      // If something was already at this cell, remove it
-      const existingId = newCellMap.get(key);
-      if (existingId) {
-        newPlacedTiles.delete(existingId);
-      }
-
-      newCellMap.set(key, id);
-      newPlacedTiles.set(id, cell);
-
-      // Remove from tray
-      const newTray = state.deck.tray.filter(t => t !== id);
-      const newDeck = { ...state.deck, tray: newTray };
-
-      // Auto-halo: if this is the first tile placed, make it the start tile
-      const isFirstPlaced = newPlacedTiles.size === 1;
-      const startTileId = isFirstPlaced ? id : state.canvas.startTileId;
-
-      return {
-        deck: newDeck,
-        canvas: {
-          ...state.canvas,
-          cellMap: newCellMap,
-          placedTiles: newPlacedTiles,
-          startTileId,
-        },
-      };
+  placeTileOnCell(id, cell) {
+    const s = get();
+    const tile = s.tiles[id];
+    if (!tile) return;
+    if (s.byCell[cellKey(cell)]) return; // cell occupied
+    set({
+      tiles: { ...s.tiles, [id]: { ...tile, cell } },
+      tray: s.tray.filter(x => x !== id),
+      byCell: { ...s.byCell, [cellKey(cell)]: id },
+      startTileId: s.startTileId ?? id,
     });
   },
 
-  // -------------------------------------------------------------------------
-  returnTileFromCanvas(id: TileId) {
-    set(state => {
-      const cell = state.canvas.placedTiles.get(id);
-      if (!cell) return state; // tile not on canvas
-
-      const newCellMap = new Map(state.canvas.cellMap);
-      const newPlacedTiles = new Map(state.canvas.placedTiles);
-      newCellMap.delete(cellKey(cell));
-      newPlacedTiles.delete(id);
-
-      // Clear halo if this tile was the start tile
-      const startTileId = state.canvas.startTileId === id ? null : state.canvas.startTileId;
-
-      // Return tile to bottom of deck
-      const newDeck = returnToDeck(state.deck, id);
-
-      return {
-        deck: newDeck,
-        canvas: {
-          ...state.canvas,
-          cellMap: newCellMap,
-          placedTiles: newPlacedTiles,
-          startTileId,
-        },
-      };
+  returnTileFromCanvas(id) {
+    const s = get();
+    const tile = s.tiles[id];
+    if (!tile?.cell) return;
+    const key = cellKey(tile.cell);
+    const { [key]: _gone, ...byCell } = s.byCell;
+    void _gone;
+    set({
+      tiles: { ...s.tiles, [id]: { ...tile, cell: null } },
+      byCell,
+      tray: [...s.tray, id],
+      startTileId: s.startTileId === id ? null : s.startTileId,
     });
   },
 
-  // -------------------------------------------------------------------------
-  setStartTile(id: TileId) {
-    set(state => ({
-      canvas: { ...state.canvas, startTileId: id },
-    }));
-  },
+  setStartTile(id) { set({ startTileId: id }); },
 }));
