@@ -15,9 +15,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Initialize on mount: check localStorage, then OS preference
   useEffect(() => {
-    const stored = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-      ? localStorage.getItem('songtiles.theme')
-      : null;
+    let stored: string | null = null;
+    try {
+      stored = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+        ? localStorage.getItem('songtiles.theme')
+        : null;
+    } catch {
+      stored = null;
+    }
 
     if (stored === 'light' || stored === 'dark') {
       setModeState(stored);
@@ -44,8 +49,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('songtiles.theme', mode);
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('songtiles.theme', mode);
+      }
+    } catch {
+      // ignore localStorage errors in test/SSR environments
     }
   }, [mode, mounted]);
 
