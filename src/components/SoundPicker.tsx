@@ -72,7 +72,7 @@ export function SoundPicker() {
       {open && (
         <div
           className="sound-overlay fixed inset-0 z-40 grid place-items-center px-4"
-          style={{ background: 'rgba(0,0,0,0.55)' }}
+          style={{ background: 'rgba(0,0,0,0.55)', pointerEvents: 'auto' }}
           onClick={() => setOpen(false)}
         >
           <div
