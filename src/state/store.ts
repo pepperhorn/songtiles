@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize, RepeatOpenTile, RepeatCloseTile } from '../graph/types';
 import { cellKey } from '../graph/types';
+import { serialiseSession, deserialiseSession } from './persistence';
 import { newTileId } from '../utils/id';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
@@ -60,6 +61,8 @@ export interface AppState {
   cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
+  saveToFile(): void;
+  loadFromFile(file: File): Promise<void>;
 }
 
 const baseDefaults = {
@@ -242,4 +245,37 @@ export const useAppStore = create<AppState>((set, get) => ({
     _player?.stopAll();
     set({ isPlaying: false });
   },
+
+  saveToFile() {
+    const s = get();
+    const json = serialiseSession(s);
+    // Guard: avoid running in environments without Blob/createObjectURL (e.g. tests).
+    if (typeof Blob === 'undefined' || typeof URL.createObjectURL === 'undefined') return;
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+    a.href = url; a.download = `songtiles-${stamp}.json`; a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async loadFromFile(file: File) {
+    const txt = await file.text();
+    const f = deserialiseSession(JSON.parse(txt));
+    set({
+      tiles: f.tiles, byCell: f.byCell,
+      startTileId: f.startTileId, segmentSettings: f.segmentSettings,
+      tray: f.placements.tray, deck: f.placements.deck, discardedCount: f.discardedCount,
+      trayCapacity: f.trayCapacity, repeatPoolSize: f.repeatPoolSize,
+      repeatSetsRemaining: f.repeatSetsRemaining,
+      bpm: f.bpm, patchId: f.patchId, isPlaying: false,
+    });
+  },
 }));
+
+// LocalStorage autosave — runs on every store mutation in browser environments.
+if (typeof window !== 'undefined') {
+  useAppStore.subscribe(state => {
+    try { localStorage.setItem('songtiles.autosave', serialiseSession(state)); } catch {}
+  });
+}
