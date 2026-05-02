@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
 import { useAppStore } from './state/store';
 import { deserialiseSession } from './state/persistence';
@@ -6,6 +6,7 @@ import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
 import { DetailPanel } from './components/DetailPanel';
 import { RepeatPocket } from './components/RepeatPocket';
+import { SetupModal } from './components/SetupModal';
 
 function Inner() {
   const { tokens } = useTheme();
@@ -17,7 +18,21 @@ function Inner() {
   const loadFromFile = useAppStore(s => s.loadFromFile);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Determine initial showSetup: show modal only if no autosave AND no firstRunDone flag.
+  const [showSetup, setShowSetup] = useState<boolean>(() => {
+    try {
+      const hasAutosave = !!localStorage.getItem('songtiles.autosave');
+      const firstRunDone = localStorage.getItem('songtiles.firstRunDone') === 'yes';
+      return !hasAutosave && !firstRunDone;
+    } catch {
+      return false;
+    }
+  });
+
   useEffect(() => {
+    // If the modal is showing, let it handle initSession when the user presses Start.
+    if (showSetup) return;
+
     // Try restoring autosave; fall back to a fresh session.
     try {
       const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('songtiles.autosave') : null;
@@ -34,11 +49,15 @@ function Inner() {
         return;
       }
     } catch {}
+
+    // Edge case: firstRunDone is set but no autosave exists (e.g. after a manual reset).
+    // Start a fresh session without showing the modal.
     initSession({ trayCapacity: 8, repeatPoolSize: 5 });
-  }, [initSession]);
+  }, [initSession, showSetup]);
 
   return (
     <div className="app-root min-h-screen" style={{ background: tokens.canvasBg, color: tokens.textPrimary }}>
+      {showSetup && <SetupModal onComplete={() => setShowSetup(false)} />}
       <Canvas />
       <DetailPanel />
       <Tray />
