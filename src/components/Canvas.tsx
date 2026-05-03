@@ -313,12 +313,34 @@ export function Canvas() {
       s.cycleRepeatCount(id);
       return;
     }
-    // Tapping a note endpoint sets it as the start AND fires play. Repeat
-    // tiles are never valid play targets, even if they happen to be at the
-    // end of a strand.
-    if (t.kind === 'note' && isEndpoint(id, s.tiles, s.byCell)) {
-      s.setStartTile(id);
-      if (!s.isPlaying) s.play();
+    // Tapping a note tile fires play if either:
+    //   (a) it's a strand endpoint (1 neighbour); or
+    //   (b) it's adjacent to a repeat tile that's part of a positional pair —
+    //       i.e. it sits at one end of a looping section. In that case the
+    //       play target becomes the section's OPEN repeat so the loop pairs
+    //       correctly inside a single segment.
+    if (t.kind === 'note') {
+      let target: string | null = null;
+      if (isEndpoint(id, s.tiles, s.byCell)) {
+        target = id;
+      } else {
+        const c = t.cell;
+        if (c) {
+          const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+          const pairs = findPositionalRepeatPairs(s.tiles, s.byCell);
+          for (const d of dirs) {
+            const nbrId = s.byCell[`${c.x + d.x},${c.y + d.y}`];
+            if (!nbrId) continue;
+            if (s.tiles[nbrId]?.kind !== 'repeat') continue;
+            const pair = pairs.find(p => p.openId === nbrId || p.closeId === nbrId);
+            if (pair) { target = pair.openId; break; }
+          }
+        }
+      }
+      if (target) {
+        s.setStartTile(target);
+        if (!s.isPlaying) s.play();
+      }
     }
   }, []);
 
@@ -458,7 +480,18 @@ export function Canvas() {
         {placedTiles.map(t => {
           const cell = t.cell!;
           const isStart = t.id === startTileId;
-          const isStartEligible = t.kind === 'note' && isEndpoint(t.id, tiles, byCell);
+          const isStartEligible = t.kind === 'note' && (
+            isEndpoint(t.id, tiles, byCell) ||
+            // Section-end notes: adjacent to a repeat that's part of a paired
+            // section, even if the note has 2 neighbours overall.
+            (t.cell != null && [
+              [1, 0], [-1, 0], [0, 1], [0, -1],
+            ].some(([dx, dy]) => {
+              const nbr = byCell[`${t.cell!.x + dx},${t.cell!.y + dy}`];
+              return !!nbr && tiles[nbr]?.kind === 'repeat' &&
+                positionalPairs.some(p => p.openId === nbr || p.closeId === nbr);
+            }))
+          );
           const isWiggling = wiggle?.id === t.id;
           const isInScope = highlightedSegment.has(t.id);
           const tilePaints = tilePaintKinds.get(t.id);
