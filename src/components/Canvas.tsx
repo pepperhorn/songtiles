@@ -52,12 +52,24 @@ export function Canvas() {
     for (const p of positionalPairs) for (const id of p.lineIds) out.add(id);
     return out;
   })();
-  // Per-repeat-tile side ('open' | 'close' | 'lone') for the SVG.
+  // Per-repeat-tile side ('open' | 'close') for the SVG. Paired tiles use
+  // their pair role. Unpaired tiles snap so their dots face the adjacent
+  // strand neighbour (right/down → 'open'; left/up → 'close').
   const repeatSideById = (() => {
     const map = new Map<TileId, 'open' | 'close'>();
     for (const p of positionalPairs) {
       map.set(p.openId, 'open');
       map.set(p.closeId, 'close');
+    }
+    for (const t of Object.values(tiles)) {
+      if (t.kind !== 'repeat' || !t.cell || map.has(t.id)) continue;
+      const c = t.cell;
+      const has = (dx: number, dy: number) => !!byCell[`${c.x + dx},${c.y + dy}`];
+      // Prefer the strand direction the tile sits on (one neighbour expected).
+      if (has(1, 0))      map.set(t.id, 'open');   // neighbour to the right
+      else if (has(0, 1)) map.set(t.id, 'open');   // neighbour below (with v rot, dots face down)
+      else if (has(-1, 0)) map.set(t.id, 'close'); // neighbour to the left
+      else if (has(0, -1)) map.set(t.id, 'close'); // neighbour above (with v rot, dots face up)
     }
     return map;
   })();
