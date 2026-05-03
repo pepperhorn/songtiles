@@ -686,7 +686,10 @@ export function Canvas() {
                 />
               )}
               {isStartEligible && (() => {
-                const haloColor = isStart && isPlaying ? PAINT_GREEN : tokens.tilePlayhead;
+                // Start tile glows light yellow-green; other endpoints stay
+                // on the regular playhead-blue tone but dimmer.
+                const START_GLOW = '#bef264';   // lime-300
+                const haloColor = isStart ? START_GLOW : tokens.tilePlayhead;
                 // Layered diffuse glow: tighter inner soft halo + wider outer
                 // bloom. No solid stroke ring — feels more like a light source
                 // than a traced outline.
