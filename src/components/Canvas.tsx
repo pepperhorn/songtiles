@@ -5,6 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
+import { computeSegments } from '../graph/segments';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -13,7 +14,19 @@ const ZOOM_MAX = 2.5;
 export function Canvas() {
   const { tokens } = useTheme();
   const tiles = useAppStore(s => s.tiles);
+  const byCell = useAppStore(s => s.byCell);
   const startTileId = useAppStore(s => s.startTileId);
+  const selectedTileId = useAppStore(s => s.selectedTileId);
+
+  // Compute the set of tile ids in the same segment as the currently-selected
+  // tile so the canvas can outline them as the "scope" of the detail panel's
+  // mode/hold/bass controls. Empty set when nothing's selected.
+  const highlightedSegment = (() => {
+    if (!selectedTileId || !startTileId) return new Set<string>();
+    const segs = computeSegments(startTileId, tiles, byCell);
+    const seg = segs.find(s => s.tiles.includes(selectedTileId));
+    return new Set(seg?.tiles ?? []);
+  })();
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -208,6 +221,7 @@ export function Canvas() {
           const cell = t.cell!;
           const isStart = t.id === startTileId;
           const isWiggling = wiggle?.id === t.id;
+          const isInScope = highlightedSegment.has(t.id);
           return (
             <div
               key={t.id}
@@ -216,6 +230,17 @@ export function Canvas() {
               onClick={() => handleTileClick(t.id)}
               {...attachLongPressDragOff(t.id)}
             >
+              {isInScope && (
+                <div
+                  className="segment-scope-ring absolute pointer-events-none"
+                  style={{
+                    inset: -3,
+                    borderRadius: 17,
+                    boxShadow: `0 0 0 2px ${tokens.tilePlayhead}`,
+                    opacity: 0.55,
+                  }}
+                />
+              )}
               {isStart && (
                 <div
                   className="start-halo absolute pointer-events-none"

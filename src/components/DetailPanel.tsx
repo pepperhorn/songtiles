@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { computeSegments } from '../graph/segments';
-import type { SegmentMode } from '../graph/types';
+import { midiToPitchClass } from '../constants/noteColors';
+import type { SegmentMode, Tile } from '../graph/types';
 
 export function DetailPanel() {
   const { tokens } = useTheme();
@@ -53,6 +54,17 @@ export function DetailPanel() {
       >
         ×
       </button>
+      <div className="detail-scope text-xs opacity-60 mb-3 pr-8">
+        {(() => {
+          const noteIds = seg.tiles.filter(id => tiles[id]?.kind === 'note');
+          const labels = noteIds.slice(0, 4).map(id => {
+            const t = tiles[id] as Tile;
+            return t.kind === 'note' ? midiToPitchClass(t.pitch) : '';
+          });
+          const more = noteIds.length > 4 ? ` (+${noteIds.length - 4})` : '';
+          return `Segment: ${labels.join(' → ')}${more}`;
+        })()}
+      </div>
       <div className="detail-row mb-3 pr-8">
         <div className="detail-label text-sm opacity-60 mb-1">Mode</div>
         <div className="detail-mode-buttons flex gap-2">
