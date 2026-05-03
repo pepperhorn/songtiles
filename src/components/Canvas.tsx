@@ -685,17 +685,25 @@ export function Canvas() {
                   }}
                 />
               )}
-              {isStartEligible && (
-                <div
-                  className={isStart ? 'start-halo absolute pointer-events-none' : 'endpoint-halo absolute pointer-events-none'}
-                  style={{
-                    inset: -6,
-                    borderRadius: 18,
-                    boxShadow: `0 0 0 3px ${isStart && isPlaying ? PAINT_GREEN : tokens.tilePlayhead}`,
-                    opacity: isStart ? 1 : 0.45,
-                  }}
-                />
-              )}
+              {isStartEligible && (() => {
+                const haloColor = isStart && isPlaying ? PAINT_GREEN : tokens.tilePlayhead;
+                // Layered diffuse glow: tighter inner soft halo + wider outer
+                // bloom. No solid stroke ring — feels more like a light source
+                // than a traced outline.
+                const inner = isStart ? '0 0 10px 2px' : '0 0 7px 1px';
+                const outer = isStart ? '0 0 22px 6px' : '0 0 16px 4px';
+                return (
+                  <div
+                    className={isStart ? 'start-halo absolute pointer-events-none' : 'endpoint-halo absolute pointer-events-none'}
+                    style={{
+                      inset: -2,
+                      borderRadius: 16,
+                      boxShadow: `${inner} ${haloColor}, ${outer} ${haloColor}`,
+                      opacity: isStart ? 0.9 : 0.5,
+                    }}
+                  />
+                );
+              })()}
               <Tile
                 tile={t}
                 size={CELL - 2}
