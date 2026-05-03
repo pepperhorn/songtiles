@@ -59,9 +59,26 @@ export function Tile({
           opacity: dimmed ? 0.4 : 1,
         }}
       >
-        <span className="note-name font-semibold" style={{ fontSize: size * 0.42 }}>{pc}</span>
-        <span className="note-octave absolute bottom-1.5 right-2 text-xs opacity-80">{oct}</span>
-        {tile.bass && <span className="bass-arrow absolute top-1.5 left-2 text-xs">↓</span>}
+        <span
+          className="note-name font-semibold"
+          style={{ fontSize: size * 0.42, textShadow: tokens.noteTextShadow }}
+        >
+          {pc}
+        </span>
+        <span
+          className="note-octave absolute bottom-1.5 right-2 text-xs opacity-90"
+          style={{ textShadow: tokens.noteTextShadow }}
+        >
+          {oct}
+        </span>
+        {tile.bass && (
+          <span
+            className="bass-arrow absolute top-1.5 left-2 text-xs"
+            style={{ textShadow: tokens.noteTextShadow }}
+          >
+            ↓
+          </span>
+        )}
       </div>
     );
   }

@@ -94,8 +94,13 @@ function Inner() {
       <Tray />
 
       <div
-        className="top-bar fixed top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-2 z-10"
-        style={{ pointerEvents: 'none' }}
+        className="top-bar fixed top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-2 z-10 px-2 py-2 rounded-2xl"
+        style={{
+          pointerEvents: 'none',
+          background: tokens.toolbarStripBg,
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+        }}
       >
         <button
           className="new-game-btn px-3 py-2 rounded-full font-medium text-sm"
