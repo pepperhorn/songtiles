@@ -14,6 +14,8 @@ export interface AudioEngine {
   stopAll(): void;
   setPatch(patchName: string): Promise<void>;
   getAudioContext(): AudioContext;
+  /** Master output node — useful for tapping audio (e.g. recording). */
+  getMasterNode(): AudioNode;
   onLoadingChange(cb: (loading: boolean) => void): () => void;
 }
 
@@ -28,6 +30,7 @@ interface SmplrLike {
 
 export function createAudioEngine(): AudioEngine {
   let ctx: AudioContext | null = null;
+  let master: GainNode | null = null;
   let instrument: SmplrLike | null = null;
   let currentPatch: string = DEFAULT_PATCH;
   let loadingListeners: Array<(loading: boolean) => void> = [];
@@ -38,6 +41,16 @@ export function createAudioEngine(): AudioEngine {
     return ctx;
   }
 
+  function getMaster(): GainNode {
+    if (!master) {
+      const ac = getCtx();
+      master = ac.createGain();
+      master.gain.value = 1;
+      master.connect(ac.destination);
+    }
+    return master;
+  }
+
   function notifyLoading(value: boolean) {
     for (const cb of loadingListeners) cb(value);
   }
@@ -45,7 +58,7 @@ export function createAudioEngine(): AudioEngine {
   function constructInstrument(patchName: string): SmplrLike {
     const ac = getCtx();
     const library = getLibraryForPatch(patchName);
-    const opts = { instrument: patchName, storage: getStorage() };
+    const opts = { instrument: patchName, storage: getStorage(), destination: getMaster() };
     switch (library) {
       case 'Mellotron': return new Mellotron(ac, opts);
       case 'Mallet':    return new Mallet(ac, opts);
@@ -97,6 +110,10 @@ export function createAudioEngine(): AudioEngine {
 
     getAudioContext(): AudioContext {
       return getCtx();
+    },
+
+    getMasterNode(): AudioNode {
+      return getMaster();
     },
 
     onLoadingChange(cb: (loading: boolean) => void): () => void {

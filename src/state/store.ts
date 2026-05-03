@@ -8,6 +8,7 @@ import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacen
 import { createAudioEngine } from '../audio/engine';
 import { createSongtilesPlayer, type SongtilesPlayer } from '../audio/songtilesPlayer';
 import { createScheduler } from '../playback/scheduler';
+import { recordToFile } from '../audio/recorder';
 import { computeSegments } from '../graph/segments';
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,7 @@ export interface AppState {
   cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
+  recordSong(): Promise<void>;
   previewNote(midi: number, bass?: boolean): void;
   initAudio(): void;
   setBpm(bpm: number): void;
@@ -378,6 +380,29 @@ export const useAppStore = create<AppState>((set, get) => ({
     _player?.stopAll();
     _clearActiveTimers();
     set({ isPlaying: false, activeTiles: {} });
+  },
+
+  async recordSong() {
+    const s = get();
+    if (!s.startTileId) throw new Error('Pick a start tile first.');
+    const player = ensurePlayer();
+    // Awaits a natural playback end via an isPlaying subscription.
+    const runPlayback = () => new Promise<void>(resolve => {
+      const unsub = useAppStore.subscribe(state => {
+        if (!state.isPlaying) {
+          unsub();
+          resolve();
+        }
+      });
+      get().play();
+    });
+    await recordToFile({
+      audioContext: player.engine.getAudioContext(),
+      masterNode: player.engine.getMasterNode(),
+      runPlayback,
+      maxDurationMs: 60_000,
+      filenameStem: 'songtiles',
+    });
   },
 
   previewNote(midi, bass) {

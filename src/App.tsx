@@ -16,6 +16,8 @@ function Inner() {
   const initAudio = useAppStore(s => s.initAudio);
   const play = useAppStore(s => s.play);
   const stop = useAppStore(s => s.stop);
+  const recordSong = useAppStore(s => s.recordSong);
+  const [recording, setRecording] = useState(false);
   const bpm = useAppStore(s => s.bpm);
   const setBpm = useAppStore(s => s.setBpm);
   const saveToFile = useAppStore(s => s.saveToFile);
@@ -152,6 +154,30 @@ function Inner() {
         >
           <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>
             {mode === 'dark' ? '☀' : '☾'}
+          </span>
+        </button>
+        <button
+          className="record-btn px-3 py-2 rounded-full font-medium text-sm grid place-items-center"
+          style={{
+            ...btnStyle,
+            pointerEvents: 'auto',
+            background: recording ? '#dc2626' : btnStyle.background,
+            color: recording ? '#fff' : btnStyle.color,
+            opacity: isPlaying && !recording ? 0.5 : 1,
+          }}
+          onClick={async () => {
+            if (recording || isPlaying) return;
+            setRecording(true);
+            try { await recordSong(); }
+            catch (err) { alert((err as Error).message); }
+            finally { setRecording(false); }
+          }}
+          aria-label={recording ? 'recording…' : 'record song to video'}
+          title={recording ? 'Recording…' : 'Record video'}
+          disabled={recording || isPlaying}
+        >
+          <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>
+            {recording ? '●' : '⏺'}
           </span>
         </button>
         <button
