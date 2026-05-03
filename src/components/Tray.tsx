@@ -119,7 +119,7 @@ export function Tray() {
     <div
       ref={trayRootRef}
       className="tray-root fixed bottom-0 left-0 right-0 px-4 pb-4 pt-3 flex items-center gap-3 overflow-x-auto"
-      style={{ background: tokens.trayBg, touchAction: 'none' }}
+      style={{ background: tokens.trayBg, touchAction: 'pan-x' }}
     >
       {tray.map(id => (
         <button

@@ -3,7 +3,9 @@ import { midiToOctave, midiToPitchClass } from '../constants/noteColors';
 import type { Tile as TileT } from '../graph/types';
 import { PETALUMA_REPEAT_OPEN, PETALUMA_REPEAT_CLOSE } from '../constants/petaluma';
 
-export function Tile({ tile, size = 96, dimmed = false }: { tile: TileT; size?: number; dimmed?: boolean }) {
+export function Tile({
+  tile, size = 96, dimmed = false, orientation = 'h',
+}: { tile: TileT; size?: number; dimmed?: boolean; orientation?: 'h' | 'v' }) {
   const { tokens } = useTheme();
   if (tile.kind === 'note') {
     const pc = midiToPitchClass(tile.pitch);
@@ -36,9 +38,32 @@ export function Tile({ tile, size = 96, dimmed = false }: { tile: TileT; size?: 
           width: size, height: size, borderRadius: 14,
           background: tokens.trayBg, color: tokens.textPrimary,
           boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
+          overflow: 'hidden',
         }}
       >
-        <span className="repeat-glyph petaluma leading-none" style={{ fontSize: size * 0.42 }}>{glyph}</span>
+        {/* SMuFL repeat barlines sit offset within their em-box (U+E040 extends
+            right of center, U+E041 extends left). The glyph also draws taller
+            than its declared font-size, so we use a fixed flex box with a
+            smaller font and a shift to center optically inside the tile. */}
+        <span
+          className="repeat-glyph-box grid place-items-center"
+          style={{
+            width: size * 0.7,
+            height: size * 0.7,
+            transform: orientation === 'v' ? 'rotate(90deg)' : undefined,
+          }}
+        >
+          <span
+            className="repeat-glyph petaluma leading-none"
+            style={{
+              fontSize: size * 0.42,
+              display: 'inline-block',
+              transform: `translateX(${tile.kind === 'repeat-open' ? '-22%' : '22%'})`,
+            }}
+          >
+            {glyph}
+          </span>
+        </span>
         {countLabel && (
           <span
             className="repeat-count absolute bottom-1.5 right-2 text-xs font-medium"

@@ -5,7 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
-import { computeSegments } from '../graph/segments';
+import { computeSegments, findPositionalRepeatPairs } from '../graph/segments';
 import type { TileId } from '../graph/types';
 
 const CELL = 96;
@@ -21,6 +21,14 @@ export function Canvas() {
   const paints = useAppStore(s => s.paints);
   const paintTool = useAppStore(s => s.paintTool);
   const paintingTileIds = useAppStore(s => s.paintingTileIds);
+  const activeTiles = useAppStore(s => s.activeTiles);
+  const isPlaying = useAppStore(s => s.isPlaying);
+
+  // Paint-stroke colours
+  const PAINT_GREEN = '#22c55e';
+  const PAINT_CHORD = '#3b82f6';   // blue
+  const PAINT_ARP = '#a855f7';     // purple
+  const PAINT_BOTH = '#ec4899';    // bright magenta-purple
 
   // Index tile ids → set of paint kinds for quick badge rendering.
   const tilePaintKinds = (() => {
@@ -36,6 +44,28 @@ export function Canvas() {
   })();
   const paintingSet = new Set(paintingTileIds);
 
+  // Repeat sections (visual): pair open/close positionally — same row/col
+  // with no gaps. Uses the shared helper so playback honours the same pairs.
+  const repeatSectionTiles = (() => {
+    const out = new Set<TileId>();
+    for (const p of findPositionalRepeatPairs(tiles, byCell)) {
+      for (const id of p.lineIds) out.add(id);
+    }
+    return out;
+  })();
+
+  // Per-tile orientation for repeat glyphs: vertical if the tile's only
+  // neighbour is above or below (vertical strand), horizontal otherwise.
+  const repeatOrientation = (id: TileId): 'h' | 'v' => {
+    const t = tiles[id];
+    if (!t?.cell) return 'h';
+    const c = t.cell;
+    const has = (dx: number, dy: number) => !!byCell[`${c.x + dx},${c.y + dy}`];
+    const horiz = has(1, 0) || has(-1, 0);
+    const vert = has(0, 1) || has(0, -1);
+    return !horiz && vert ? 'v' : 'h';
+  };
+
   // Compute the set of tile ids in the same segment as the currently-selected
   // tile so the canvas can outline them as the "scope" of the detail panel's
   // mode/hold/bass controls. Empty set when nothing's selected.
@@ -48,6 +78,16 @@ export function Canvas() {
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+
+  // Pinch-zoom: track every active pointer on the canvas root, and when 2 are
+  // down compute zoom + pan so the midpoint between the fingers stays fixed.
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{
+    startDist: number;
+    startMid: { x: number; y: number };
+    startZoom: number;
+    startPan: { x: number; y: number };
+  } | null>(null);
 
   const panStart = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   const draggedRef = useRef(false);
@@ -63,14 +103,59 @@ export function Canvas() {
   const placedTiles = Object.values(tiles).filter(t => t.cell != null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    // Don't start pan if the click originated on a tile
-    if ((e.target as Element).closest('.songtile')) return;
+    // Track pointer for pinch detection regardless of target — a second finger
+    // landing on a tile should still register and start a pinch.
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) {
+      // Begin pinch.
+      const pts = Array.from(pointersRef.current.values());
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const startDist = Math.hypot(dx, dy);
+      pinchRef.current = {
+        startDist: Math.max(1, startDist),
+        startMid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 },
+        startZoom: zoom,
+        startPan: { ...pan },
+      };
+      panStart.current = null;
+      return;
+    }
+    // Single pointer: start pan unless it's on a tile.
+    if ((e.target as Element).closest('[data-tile-id]')) return;
     draggedRef.current = false;
     panStart.current = { px: e.clientX, py: e.clientY, ox: pan.x, oy: pan.y };
     (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-  }, [pan]);
+  }, [pan, zoom]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    // Active pinch: re-derive zoom + pan from the two pointers.
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const pts = Array.from(pointersRef.current.values());
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const dist = Math.hypot(dx, dy);
+      const start = pinchRef.current;
+      let nextZoom = (start.startZoom * dist) / start.startDist;
+      nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom));
+      // Keep the original midpoint (in screen space) fixed under the fingers
+      // by adjusting pan to compensate for the zoom-around-origin transform.
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+        const k = nextZoom / start.startZoom;
+        const localMidX = start.startMid.x - rect.left;
+        const localMidY = start.startMid.y - rect.top;
+        const nextPanX = localMidX - k * (localMidX - start.startPan.x);
+        const nextPanY = localMidY - k * (localMidY - start.startPan.y);
+        setPan({ x: nextPanX, y: nextPanY });
+      }
+      setZoom(nextZoom);
+      draggedRef.current = true; // suppress tap-to-deselect after pinch
+      return;
+    }
     if (!panStart.current) return;
     const dx = e.clientX - panStart.current.px;
     const dy = e.clientY - panStart.current.py;
@@ -81,7 +166,11 @@ export function Canvas() {
     });
   }, []);
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) {
+      pinchRef.current = null;
+    }
     // Tap on empty canvas (no pan, no tile) → deselect to dismiss the detail panel.
     if (panStart.current && !draggedRef.current) {
       useAppStore.getState().selectTile(null);
@@ -89,81 +178,99 @@ export function Canvas() {
     panStart.current = null;
   }, []);
 
-  // Long-press handler: starts a 450ms timer; if the tile is an endpoint when
-  // the timer fires, the tile enters wiggle/drag-off mode. The pointer keeps
-  // capture so subsequent moves come back here regardless of where the finger
-  // travels. On release: drop on tray → return-or-discard via the store; drop
-  // anywhere else → snap back (just exit wiggle).
-  const attachLongPressDragOff = useCallback((id: string) => {
-    let timer: number | null = null;
-    let startXY: { x: number; y: number } | null = null;
-    let captured = false;
+  // Long-press → wiggle → drag. State lives in a ref so it survives re-renders
+  // (setWiggle re-renders the canvas, which would otherwise wipe closure-state).
+  // On release: drop on tray → return-to-tray; drop on canvas at a different
+  // valid cell → move tile; otherwise snap back.
+  const lpRef = useRef<{
+    id: string;
+    timer: number | null;
+    startXY: { x: number; y: number } | null;
+    captured: boolean;
+  } | null>(null);
 
-    const cancel = () => {
-      if (timer) { window.clearTimeout(timer); timer = null; }
-      startXY = null;
-    };
+  const cellFromClient = useCallback((cx: number, cy: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    if (cx < rect.left || cx > rect.right || cy < rect.top || cy > rect.bottom) return null;
+    const worldX = (cx - rect.left - pan.x) / zoom;
+    const worldY = (cy - rect.top - pan.y) / zoom;
+    return { x: Math.floor(worldX / CELL), y: Math.floor(worldY / CELL) };
+  }, [pan, zoom]);
 
-    return {
-      onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
-        // Capture coords + target up front. React's synthetic event nulls these
-        // after the handler returns, so reading e.clientX inside the timeout
-        // would yield 0/undefined and the wiggle wouldn't appear at the finger.
-        const cx = e.clientX;
-        const cy = e.clientY;
-        const target = e.currentTarget;
-        const pointerId = e.pointerId;
-        startXY = { x: cx, y: cy };
-        timer = window.setTimeout(() => {
-          timer = null;
-          const s = useAppStore.getState();
-          if (!isEndpoint(id, s.tiles, s.byCell)) return; // non-endpoints can't be removed
-          captured = true;
-          try { target.setPointerCapture?.(pointerId); } catch { /* ignored */ }
-          setWiggle({ id, x: cx, y: cy });
-        }, LONG_PRESS_MS);
-      },
-      onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
-        if (timer && startXY) {
-          const dx = Math.abs(e.clientX - startXY.x);
-          const dy = Math.abs(e.clientY - startXY.y);
-          if (dx > 6 || dy > 6) cancel();
-          return;
+  const attachLongPressDragOff = useCallback((id: string) => ({
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => {
+      const cx = e.clientX, cy = e.clientY;
+      const target = e.currentTarget;
+      const pointerId = e.pointerId;
+      const state = { id, timer: null as number | null, startXY: { x: cx, y: cy }, captured: false };
+      lpRef.current = state;
+      state.timer = window.setTimeout(() => {
+        if (!lpRef.current || lpRef.current.id !== id) return;
+        lpRef.current.timer = null;
+        // Allow long-press on ANY placed tile (not just endpoints) — drop logic
+        // decides what's a valid destination.
+        lpRef.current.captured = true;
+        try { target.setPointerCapture?.(pointerId); } catch { /* ignored */ }
+        setWiggle({ id, x: cx, y: cy });
+      }, LONG_PRESS_MS);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      const lp = lpRef.current;
+      if (!lp || lp.id !== id) return;
+      if (lp.timer && lp.startXY) {
+        const dx = Math.abs(e.clientX - lp.startXY.x);
+        const dy = Math.abs(e.clientY - lp.startXY.y);
+        if (dx > 6 || dy > 6) {
+          window.clearTimeout(lp.timer);
+          lp.timer = null;
+          lp.startXY = null;
         }
-        if (captured) {
-          setWiggle({ id, x: e.clientX, y: e.clientY });
-        }
-      },
-      onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
-        cancel();
-        if (!captured) return;
-        captured = false;
-        if (isOverTray(e.clientX, e.clientY)) {
-          useAppStore.getState().returnTileFromCanvas(id);
-        }
-        setWiggle(null);
-      },
-      onPointerCancel: () => {
-        cancel();
-        captured = false;
-        setWiggle(null);
-      },
-    };
-  }, []);
+        return;
+      }
+      if (lp.captured) {
+        setWiggle({ id, x: e.clientX, y: e.clientY });
+      }
+    },
+    onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => {
+      const lp = lpRef.current;
+      if (!lp || lp.id !== id) return;
+      if (lp.timer) { window.clearTimeout(lp.timer); lp.timer = null; }
+      const wasCaptured = lp.captured;
+      lpRef.current = null;
+      if (!wasCaptured) return;
 
-  const handleTileClick = useCallback((id: string) => {
+      const s = useAppStore.getState();
+      if (isOverTray(e.clientX, e.clientY)) {
+        // Tray return only if removing the tile keeps the graph connected
+        // (endpoints + isolated tiles only).
+        s.returnTileFromCanvas(id);
+      } else {
+        const targetCell = cellFromClient(e.clientX, e.clientY);
+        if (targetCell) s.moveTileOnCanvas(id, targetCell);
+      }
+      setWiggle(null);
+    },
+    onPointerCancel: () => {
+      const lp = lpRef.current;
+      if (lp && lp.timer) window.clearTimeout(lp.timer);
+      lpRef.current = null;
+      setWiggle(null);
+    },
+  }), [cellFromClient]);
+
+  const handleTileClick = useCallback((e: React.MouseEvent<HTMLDivElement>, fallbackId: string) => {
     if (draggedRef.current) return;
+    // Always resolve the id from the real click target so layered halos can't
+    // misroute the click to an adjacent tile.
+    const wrap = (e.target as HTMLElement).closest('[data-tile-id]') as HTMLElement | null;
+    const id = wrap?.dataset.tileId ?? fallbackId;
     const s = useAppStore.getState();
     const t = s.tiles[id];
     if (!t) return;
 
-    // Paint mode short-circuits the normal tap behaviour.
-    if (s.paintTool) {
-      s.togglePaintMembership(id);
-      // Still preview the pitch so the user can hear what they're painting.
-      if (t.kind === 'note' && s.paintTool !== 'eraser') s.previewNote(t.pitch);
-      return;
-    }
+    // Paint mode is handled at the pointer level (swipe paint), not via click.
+    if (s.paintTool) return;
 
     // Double-tap detection: second tap on same tile within 300ms toggles bass
     // (note tiles only). The first tap of the pair has already fired its
@@ -179,9 +286,20 @@ export function Canvas() {
     lastTapRef.current = { id, t: now };
 
     // Single-tap actions: preview pitch, select, halo if endpoint.
-    if (t.kind === 'note') s.previewNote(t.pitch);
+    if (t.kind === 'note') s.previewNote(t.pitch, t.bass);
     s.selectTile(id);
-    if (isEndpoint(id, s.tiles, s.byCell)) s.setStartTile(id);
+    // Single-tap on a repeat-open cycles the count (1×, 2×, 3×, 4×, ∞).
+    if (t.kind === 'repeat-open') {
+      s.cycleRepeatCount(id);
+      return;
+    }
+    // Tapping a note endpoint sets it as the start AND fires play. Repeat
+    // tiles are never valid play targets, even if they happen to be at the
+    // end of a strand.
+    if (t.kind === 'note' && isEndpoint(id, s.tiles, s.byCell)) {
+      s.setStartTile(id);
+      if (!s.isPlaying) s.play();
+    }
   }, []);
 
   // Register a resolver so the Tray can ask "what cell is this screen point over?"
@@ -196,6 +314,80 @@ export function Canvas() {
     });
     return () => setCanvasResolver(null);
   }, [pan, zoom]);
+
+  // ------------------------------------------------------------------
+  // Swipe-paint: when paintTool is active, capture pointer events at
+  // window level so the user can drag across multiple tiles. Each tile
+  // the pointer enters is added (chord/arp) or removed (eraser).
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    if (!paintTool) return;
+
+    let active = false;
+    let touchedThisStroke = new Set<TileId>();
+
+    const tileFromPoint = (cx: number, cy: number): TileId | null => {
+      const el = document.elementFromPoint(cx, cy);
+      if (!el) return null;
+      const wrap = (el as HTMLElement).closest('[data-tile-id]') as HTMLElement | null;
+      return wrap?.dataset.tileId ?? null;
+    };
+
+    const visit = (id: TileId) => {
+      if (touchedThisStroke.has(id)) return;
+      touchedThisStroke.add(id);
+      const s = useAppStore.getState();
+      const t = s.tiles[id];
+      if (!t || t.kind !== 'note') return;
+      if (s.paintTool === 'eraser') {
+        s.removeTileFromAllPaints(id);
+        return;
+      }
+      // Toggle membership: tapping a tile already in the in-progress paint
+      // removes it; otherwise adds it. Preview pitch so the user hears coverage.
+      s.togglePaintMembership(id);
+      s.previewNote(t.pitch, t.bass);
+    };
+
+    const onDown = (e: PointerEvent) => {
+      const id = tileFromPoint(e.clientX, e.clientY);
+      if (!id) return;
+      // Prevent the canvas-pan handler from also firing for this stroke.
+      e.preventDefault();
+      e.stopPropagation();
+      active = true;
+      touchedThisStroke = new Set();
+      visit(id);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!active) return;
+      const id = tileFromPoint(e.clientX, e.clientY);
+      if (id) visit(id);
+    };
+    const onUp = () => {
+      if (!active) return;
+      active = false;
+      // Auto-commit chord/arp paints on release (eraser doesn't commit).
+      const s = useAppStore.getState();
+      if (s.paintTool !== 'eraser' && s.paintingTileIds.length >= 2) {
+        s.commitPaint();
+      } else if (s.paintTool !== 'eraser') {
+        // <2 tiles: just clear the in-progress selection.
+        useAppStore.setState({ paintingTileIds: [] });
+      }
+    };
+
+    window.addEventListener('pointerdown', onDown, { capture: true });
+    window.addEventListener('pointermove', onMove, { capture: true });
+    window.addEventListener('pointerup', onUp, { capture: true });
+    window.addEventListener('pointercancel', onUp, { capture: true });
+    return () => {
+      window.removeEventListener('pointerdown', onDown, { capture: true } as any);
+      window.removeEventListener('pointermove', onMove, { capture: true } as any);
+      window.removeEventListener('pointerup', onUp, { capture: true } as any);
+      window.removeEventListener('pointercancel', onUp, { capture: true } as any);
+    };
+  }, [paintTool]);
 
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -246,17 +438,24 @@ export function Canvas() {
         {placedTiles.map(t => {
           const cell = t.cell!;
           const isStart = t.id === startTileId;
+          const isStartEligible = t.kind === 'note' && isEndpoint(t.id, tiles, byCell);
           const isWiggling = wiggle?.id === t.id;
           const isInScope = highlightedSegment.has(t.id);
           const tilePaints = tilePaintKinds.get(t.id);
           const inProgress = paintingSet.has(t.id);
+          const inRepeatSection = repeatSectionTiles.has(t.id);
+          const isActive = !!activeTiles[t.id];
+          const hasChord = tilePaints?.has('chord');
+          const hasArp = tilePaints?.has('arp');
+          const paintBorderColor = hasChord && hasArp ? PAINT_BOTH : hasChord ? PAINT_CHORD : hasArp ? PAINT_ARP : null;
           return (
             <div
               key={t.id}
+              data-tile-id={t.id}
               className={`canvas-tile-wrapper absolute ${isWiggling ? 'songtile-wiggle' : ''}`}
-              style={{ left: cell.x * CELL, top: cell.y * CELL, opacity: isWiggling ? 0.35 : 1 }}
-              onClick={() => handleTileClick(t.id)}
-              {...attachLongPressDragOff(t.id)}
+              style={{ left: cell.x * CELL + 1, top: cell.y * CELL + 1, opacity: isWiggling ? 0.35 : 1 }}
+              onClick={(e) => handleTileClick(e, t.id)}
+              {...(paintTool ? {} : attachLongPressDragOff(t.id))}
             >
               {isInScope && !paintTool && (
                 <div
@@ -280,40 +479,53 @@ export function Canvas() {
                   }}
                 />
               )}
-              {tilePaints && (
+              {paintBorderColor && (
                 <div
-                  className="paint-badges absolute pointer-events-none flex gap-1"
-                  style={{ top: 4, left: 4 }}
-                >
-                  {tilePaints.has('chord') && (
-                    <span
-                      className="paint-badge-chord text-[10px] font-semibold rounded-full px-1.5"
-                      style={{ background: 'rgba(255,255,255,0.85)', color: '#000' }}
-                    >
-                      ♬
-                    </span>
-                  )}
-                  {tilePaints.has('arp') && (
-                    <span
-                      className="paint-badge-arp text-[10px] font-semibold rounded-full px-1.5"
-                      style={{ background: 'rgba(255,255,255,0.85)', color: '#000' }}
-                    >
-                      ∿
-                    </span>
-                  )}
-                </div>
-              )}
-              {isStart && (
-                <div
-                  className="start-halo absolute pointer-events-none"
+                  className="paint-border absolute pointer-events-none"
                   style={{
-                    inset: -6,
-                    borderRadius: 18,
-                    boxShadow: `0 0 0 3px ${tokens.tilePlayhead}`,
+                    inset: -2,
+                    borderRadius: 16,
+                    boxShadow: `0 0 0 3px ${paintBorderColor}`,
                   }}
                 />
               )}
-              <Tile tile={t} size={CELL} />
+              {inRepeatSection && (
+                <div
+                  className="repeat-section-ring absolute pointer-events-none"
+                  style={{
+                    inset: -4,
+                    borderRadius: 18,
+                    boxShadow: '0 0 0 3px #facc15',
+                    opacity: 0.9,
+                  }}
+                />
+              )}
+              {isActive && (
+                <div
+                  className="active-tile-glow absolute pointer-events-none"
+                  style={{
+                    inset: -8,
+                    borderRadius: 20,
+                    boxShadow: `0 0 0 4px ${PAINT_GREEN}, 0 0 16px ${PAINT_GREEN}`,
+                  }}
+                />
+              )}
+              {isStartEligible && (
+                <div
+                  className={isStart ? 'start-halo absolute pointer-events-none' : 'endpoint-halo absolute pointer-events-none'}
+                  style={{
+                    inset: -6,
+                    borderRadius: 18,
+                    boxShadow: `0 0 0 3px ${isStart && isPlaying ? PAINT_GREEN : tokens.tilePlayhead}`,
+                    opacity: isStart ? 1 : 0.45,
+                  }}
+                />
+              )}
+              <Tile
+                tile={t}
+                size={CELL - 2}
+                orientation={t.kind === 'repeat-open' || t.kind === 'repeat-close' ? repeatOrientation(t.id) : 'h'}
+              />
             </div>
           );
         })}

@@ -9,18 +9,22 @@ interface PatchOption {
   patchName: string;
 }
 
-// Curated v1 list — keys, mellotron, mallets. The names must match the smplr
-// libraries exactly: Soundfont uses snake_case GM names, Mellotron and Mallet
-// use the exact names returned by their respective getNames() helpers.
+// All patches must support our note range: midi 36..84 (C2..C6), plus bass
+// voices clamped to C2..B2. GM Soundfonts cover the full range. Mallets
+// (Vibraphone/Xylophone/Tubular Bells) only sample from F3+, so bass voices
+// fall silent — excluded. Mellotron tape patches are 35-key (~G2..F5 =
+// 43..77); none cover our full range, so all Mellotrons are excluded too.
 const PATCHES: PatchOption[] = [
-  { label: 'Acoustic Grand Piano',   patchName: 'acoustic_grand_piano' },
-  { label: 'Electric Piano',         patchName: 'electric_piano_1' },
-  { label: 'Harpsichord',            patchName: 'harpsichord' },
-  { label: 'Mellotron Strings',      patchName: 'MKII VIOLINS' },
-  { label: 'Mellotron Choir',        patchName: '8VOICE CHOIR' },
-  { label: 'Vibraphone',             patchName: 'Vibraphone - Soft Mallets' },
-  { label: 'Xylophone',              patchName: 'Xylophone - Medium Mallets' },
-  { label: 'Tubular Bells',          patchName: 'Tubular Bells 1' },
+  { label: 'Acoustic Grand Piano',     patchName: 'acoustic_grand_piano' },
+  { label: 'Electric Piano',           patchName: 'electric_piano_1' },
+  { label: 'Harpsichord',              patchName: 'harpsichord' },
+  { label: 'Celesta',                  patchName: 'celesta' },
+  { label: 'Music Box',                patchName: 'music_box' },
+  { label: 'Marimba',                  patchName: 'marimba' },
+  { label: 'Church Organ',             patchName: 'church_organ' },
+  { label: 'Drawbar Organ',            patchName: 'drawbar_organ' },
+  { label: 'Acoustic Guitar (nylon)',  patchName: 'acoustic_guitar_nylon' },
+  { label: 'Pad: Warm',                patchName: 'pad_2_warm' },
 ];
 
 export function SoundPicker() {

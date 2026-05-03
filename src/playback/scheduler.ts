@@ -17,6 +17,7 @@ export interface SchedulerOptions {
   now: () => number;
   emit: ScheduleEmit;
   getSnapshot: () => SchedulerSnapshot;
+  onEnd?: () => void;
 }
 
 export interface Scheduler {
@@ -24,9 +25,11 @@ export interface Scheduler {
   stop(): void;
 }
 
-export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): Scheduler {
+export function createScheduler({ now, emit, getSnapshot, onEnd }: SchedulerOptions): Scheduler {
   let timerId: ReturnType<typeof setInterval> | null = null;
   let startTime = 0;
+  let maxWhen = 0;          // latest event end-time we've scheduled
+  let endFired = false;
   const emitted = new Set<string>();
 
   function tick() {
@@ -39,6 +42,8 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
       const key = `${n.midi}@${n.when.toFixed(4)}`;
       if (emitted.has(key)) return;
       emitted.add(key);
+      const end = n.when + (n.duration || 0);
+      if (end > maxWhen) maxWhen = end;
       emit(n);
     };
 
@@ -51,6 +56,13 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
       windowEnd,
       emit: wrappedEmit,
     });
+
+    // End-of-pass detection: after we've scheduled at least one event AND
+    // the audio clock has moved past the last event's tail, fire onEnd once.
+    if (!endFired && maxWhen > 0 && currentTime > maxWhen + 0.05) {
+      endFired = true;
+      onEnd?.();
+    }
   }
 
   return {
@@ -58,6 +70,8 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
       if (timerId !== null) return;
       startTime = now();          // captured once; subsequent ticks share this anchor
       emitted.clear();
+      maxWhen = 0;
+      endFired = false;
       tick();                     // immediate first tick
       timerId = setInterval(tick, TICK_MS);
     },

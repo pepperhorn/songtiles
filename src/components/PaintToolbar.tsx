@@ -13,8 +13,6 @@ export function PaintToolbar() {
   const { tokens } = useTheme();
   const tool = useAppStore(s => s.paintTool);
   const setTool = useAppStore(s => s.setPaintTool);
-  const commitPaint = useAppStore(s => s.commitPaint);
-  const inProgressCount = useAppStore(s => s.paintingTileIds.length);
 
   const btnStyle: CSSProperties = {
     background: tokens.topBarBg,
@@ -22,13 +20,11 @@ export function PaintToolbar() {
     boxShadow: tokens.tileShadow,
     pointerEvents: 'auto',
   };
-  const activeStyle: CSSProperties = {
-    ...btnStyle,
-    background: tokens.tilePlayhead,
-    color: '#fff',
+  const TOOL_COLOR: Record<Exclude<PaintTool, null>, string> = {
+    chord: '#3b82f6',
+    arp: '#a855f7',
+    eraser: '#ef4444',
   };
-
-  const showDone = (tool === 'chord' || tool === 'arp') && inProgressCount >= 2;
 
   return (
     <>
@@ -39,7 +35,7 @@ export function PaintToolbar() {
             key={t.tool}
             type="button"
             className={`paint-tool-btn paint-tool-${t.tool} px-3 py-2 rounded-full font-medium text-sm flex items-center gap-1`}
-            style={isActive ? activeStyle : btnStyle}
+            style={isActive ? { ...btnStyle, background: TOOL_COLOR[t.tool], color: '#fff' } : btnStyle}
             onClick={() => setTool(isActive ? null : t.tool)}
             aria-label={`${t.label} paint tool`}
             aria-pressed={isActive}
@@ -49,17 +45,6 @@ export function PaintToolbar() {
           </button>
         );
       })}
-      {showDone && (
-        <button
-          type="button"
-          className="paint-done-btn px-3 py-2 rounded-full font-semibold text-sm"
-          style={{ ...btnStyle, background: tokens.tilePlayhead, color: '#fff' }}
-          onClick={commitPaint}
-          aria-label={`commit ${tool} paint`}
-        >
-          Done ({inProgressCount})
-        </button>
-      )}
     </>
   );
 }

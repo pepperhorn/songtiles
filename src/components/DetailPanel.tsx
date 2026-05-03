@@ -9,13 +9,14 @@ export function DetailPanel() {
   const { tokens } = useTheme();
   const selected = useAppStore(s => s.selectedTileId);
   const start = useAppStore(s => s.startTileId);
+  const isPlaying = useAppStore(s => s.isPlaying);
   const tiles = useAppStore(s => s.tiles);
   const byCell = useAppStore(s => s.byCell);
   const paints = useAppStore(s => s.paints);
   const toggleBass = useAppStore(s => s.toggleBass);
   const removeFromPaints = useAppStore(s => s.removeTileFromAllPaints);
   const selectedTile = useAppStore(s => (s.selectedTileId ? s.tiles[s.selectedTileId] : null));
-  if (!selected || !start) return null;
+  if (!selected || !start || isPlaying) return null;
 
   const segs = computeSegments(start, tiles, byCell);
   const seg = segs.find(s => s.tiles.includes(selected));

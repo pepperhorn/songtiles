@@ -13,6 +13,8 @@ function Inner() {
   const { tokens, mode, setMode } = useTheme();
   const initSession = useAppStore(s => s.initSession);
   const isPlaying = useAppStore(s => s.isPlaying);
+  const audioReady = useAppStore(s => s.audioReady);
+  const initAudio = useAppStore(s => s.initAudio);
   const play = useAppStore(s => s.play);
   const stop = useAppStore(s => s.stop);
   const bpm = useAppStore(s => s.bpm);
@@ -71,6 +73,22 @@ function Inner() {
   return (
     <div className="app-root min-h-screen" style={{ background: tokens.canvasBg, color: tokens.textPrimary }}>
       {showSetup && <SetupModal onComplete={() => setShowSetup(false)} />}
+      {!showSetup && !audioReady && (
+        <div
+          className="audio-unlock-overlay fixed inset-0 z-30 grid place-items-center"
+          style={{ background: 'rgba(0,0,0,0.55)' }}
+        >
+          <button
+            type="button"
+            className="audio-unlock-btn px-6 py-4 rounded-2xl font-semibold text-base"
+            style={{ background: tokens.tilePlayhead, color: '#fff', boxShadow: tokens.tileShadow }}
+            onClick={() => initAudio()}
+            aria-label="start audio"
+          >
+            ▶ Start audio
+          </button>
+        </div>
+      )}
       <Canvas />
       <DetailPanel />
       <Tray />

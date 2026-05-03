@@ -42,6 +42,7 @@ export interface AppState {
   bpm: number;
   patchId: string;
   isPlaying: boolean;
+  audioReady: boolean;
 
   // Selected tile (for detail panel)
   selectedTileId: TileId | null;
@@ -51,11 +52,15 @@ export interface AppState {
   paintTool: PaintTool;
   paintingTileIds: TileId[];
 
+  // Currently sounding tiles (for the live playhead halo).
+  activeTiles: Record<TileId, true>;
+
   // Actions
   initSession(opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }): void;
   refillTray(): void;
   discardTrayTile(id: TileId): void;
   placeTileOnCell(id: TileId, cell: Cell): void;
+  moveTileOnCanvas(id: TileId, cell: Cell): boolean;
   returnTileFromCanvas(id: TileId): void;
   setStartTile(id: TileId | null): void;
   selectTile(id: TileId | null): void;
@@ -65,7 +70,7 @@ export interface AppState {
   cycleRepeatCount(id: TileId): void;
   play(): void;
   stop(): void;
-  previewNote(midi: number): void;
+  previewNote(midi: number, bass?: boolean): void;
   initAudio(): void;
   setBpm(bpm: number): void;
   saveToFile(): void;
@@ -92,10 +97,19 @@ const baseDefaults = {
   bpm: 240,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
+  audioReady: false,
   paints: {} as Record<PaintId, Paint>,
   paintTool: null as PaintTool,
   paintingTileIds: [] as TileId[],
+  activeTiles: {} as Record<TileId, true>,
 };
+
+// Active-tile timer registry — clear on stop so we don't leak across sessions.
+const _activeTimers: Set<ReturnType<typeof setTimeout>> = new Set();
+function _clearActiveTimers() {
+  for (const t of _activeTimers) clearTimeout(t);
+  _activeTimers.clear();
+}
 
 // Adapter: pull DeckRecord-shaped fields out of an AppState slice (note tiles only).
 function deckSlice(s: Pick<AppState, 'tiles'|'tray'|'deck'|'discardedCount'>): DeckRecord {
@@ -150,8 +164,75 @@ export const useAppStore = create<AppState>((set, get) => ({
       tiles: { ...s.tiles, [id]: { ...tile, cell } },
       tray: s.tray.filter(x => x !== id),
       byCell: { ...s.byCell, [cellKey(cell)]: id },
-      startTileId: s.startTileId ?? id,
+      // Auto-pick start tile, but never a repeat marker — only note tiles
+      // are valid playback origins.
+      startTileId: s.startTileId ?? (tile.kind === 'note' ? id : null),
     });
+  },
+
+  moveTileOnCanvas(id, cell) {
+    const s = get();
+    const tile = s.tiles[id];
+    if (!tile?.cell) return false;
+    const oldKey = cellKey(tile.cell);
+    const newKey = cellKey(cell);
+    if (oldKey === newKey) return false;
+    if (s.byCell[newKey]) return false; // occupied
+
+    // Build the virtual byCell with tile moved.
+    const { [oldKey]: _gone, ...byCellMid } = s.byCell;
+    void _gone;
+    const tilesMid = { ...s.tiles, [id]: { ...tile, cell } };
+    const byCellNext = { ...byCellMid, [newKey]: id };
+
+    // Validate: new cell must be orthogonally adjacent to ANOTHER placed tile,
+    // and the resulting graph must be fully connected.
+    const placedIds = Object.keys(tilesMid).filter(tid => tilesMid[tid].cell);
+    if (placedIds.length > 1) {
+      // Adjacency to graph (excluding self).
+      const dirs = [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+      let touchesGraph = false;
+      for (const d of dirs) {
+        const k = cellKey({ x: cell.x + d.x, y: cell.y + d.y });
+        const nbrId = byCellNext[k];
+        if (nbrId && nbrId !== id) { touchesGraph = true; break; }
+      }
+      if (!touchesGraph) return false;
+
+      // Connectivity BFS.
+      const start = placedIds[0];
+      const visited = new Set<TileId>([start]);
+      const queue = [start];
+      while (queue.length) {
+        const cur = queue.shift()!;
+        const t = tilesMid[cur];
+        if (!t.cell) continue;
+        for (const d of dirs) {
+          const nk = cellKey({ x: t.cell.x + d.x, y: t.cell.y + d.y });
+          const nbr = byCellNext[nk];
+          if (nbr && !visited.has(nbr)) {
+            visited.add(nbr);
+            queue.push(nbr);
+          }
+        }
+      }
+      if (visited.size !== placedIds.length) return false;
+    }
+
+    // Strip from any paints (delete paint if it falls below 2 tiles).
+    const nextPaints: Record<PaintId, Paint> = {};
+    for (const [pid, p] of Object.entries(s.paints)) {
+      if (!p.tileIds.includes(id)) { nextPaints[pid] = p; continue; }
+      const remaining = p.tileIds.filter(t => t !== id);
+      if (remaining.length >= 2) nextPaints[pid] = { ...p, tileIds: remaining };
+    }
+
+    set({
+      tiles: tilesMid,
+      byCell: byCellNext,
+      paints: nextPaints,
+    });
+    return true;
   },
 
   returnTileFromCanvas(id) {
@@ -169,7 +250,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (startTileId === id) {
       const remaining = Object.values(s.tiles).filter(t => t.cell && t.id !== id);
       const candidates = remaining
-        .filter(t => isEndpoint(t.id, s.tiles, byCell))
+        .filter(t => t.kind === 'note' && isEndpoint(t.id, s.tiles, byCell))
         .sort((a, b) => (a.cell!.y - b.cell!.y) || (a.cell!.x - b.cell!.x));
       startTileId = candidates[0]?.id ?? null;
     }
@@ -203,7 +284,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const s = get();
     const t = s.tiles[id];
     if (!t || t.kind !== 'note') return;
-    set({ tiles: { ...s.tiles, [id]: { ...t, bass: !t.bass } } });
+    const nextBass = !t.bass;
+    set({ tiles: { ...s.tiles, [id]: { ...t, bass: nextBass } } });
+    // Preview the new state so the user hears whether bass is now on/off.
+    get().previewNote(t.pitch, nextBass);
   },
 
   setSegmentMode(rootId, mode) {
@@ -230,13 +314,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   play() {
     const s = get();
     if (!s.startTileId) return;
+    // Defensive: drop any active paint tool so its swipe handler can't
+    // intercept tile taps during playback.
+    if (s.paintTool || s.paintingTileIds.length) {
+      set({ paintTool: null, paintingTileIds: [] });
+    }
     const player = ensurePlayer();
     // Best-effort: load the patch on first play (no-op if already loaded).
     player.setPatch(s.patchId).catch(() => {});
     _scheduler?.stop();
+    _clearActiveTimers();
+    set({ activeTiles: {} });
     _scheduler = createScheduler({
       now: () => player.now(),
-      emit: ev => player.playNote({ midi: ev.midi, when: ev.when, duration: ev.duration, velocity: ev.velocity }),
+      emit: ev => {
+        player.playNote({ midi: ev.midi, when: ev.when, duration: ev.duration, velocity: ev.velocity });
+        // Schedule UI playhead flashes — convert audio-time delay to wall-clock ms.
+        if (ev.tileId) {
+          const tileId = ev.tileId;
+          const onMs = Math.max(0, (ev.when - player.now()) * 1000);
+          const offMs = Math.max(onMs + 30, (ev.when + ev.duration - player.now()) * 1000);
+          const onT = setTimeout(() => {
+            _activeTimers.delete(onT);
+            const cur = get().activeTiles;
+            if (!cur[tileId]) set({ activeTiles: { ...cur, [tileId]: true } });
+          }, onMs);
+          _activeTimers.add(onT);
+          const offT = setTimeout(() => {
+            _activeTimers.delete(offT);
+            const cur = get().activeTiles;
+            if (cur[tileId]) {
+              const { [tileId]: _, ...rest } = cur;
+              set({ activeTiles: rest });
+            }
+          }, offMs);
+          _activeTimers.add(offT);
+        }
+      },
       getSnapshot: () => {
         const st = get();
         return {
@@ -245,6 +359,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           paints: st.paints,
           bpm: st.bpm,
         };
+      },
+      onEnd: () => {
+        // Auto-stop: playback ran past the last scheduled event.
+        _scheduler?.stop();
+        _scheduler = null;
+        set({ isPlaying: false });
+        // Defer activeTiles clear until after the last off-timer fires.
       },
     });
     _scheduler.start();
@@ -255,10 +376,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     _scheduler?.stop();
     _scheduler = null;
     _player?.stopAll();
-    set({ isPlaying: false });
+    _clearActiveTimers();
+    set({ isPlaying: false, activeTiles: {} });
   },
 
-  previewNote(midi) {
+  previewNote(midi, bass) {
     if (!Number.isFinite(midi)) return;
     if (typeof AudioContext === 'undefined') return; // jsdom / SSR
     try {
@@ -267,7 +389,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       // Drop silently if the patch isn't loaded yet (engine short-circuits).
       // Preview length scales with current bpm so a touch matches one beat at tempo.
       const beatSec = 60 / get().bpm;
-      player.playNote({ midi, when: player.now(), duration: beatSec, velocity: 0.8 });
+      const when = player.now();
+      player.playNote({ midi, when, duration: beatSec, velocity: 0.8 });
+      if (bass) {
+        // Mirror playhead bass: clamp to C2..B2 (midi 36 + pitch class).
+        const pc = ((midi % 12) + 12) % 12;
+        player.playNote({ midi: 36 + pc, when, duration: beatSec, velocity: 0.8 });
+      }
     } catch {
       // Audio init can fail (autoplay policy, no user gesture, etc.) — never crash the UI.
     }
@@ -289,6 +417,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       player.now();
       // Kick off the soundfont download — first tile preview will be instant.
       player.setPatch(get().patchId).catch(() => {});
+      set({ audioReady: true });
     } catch { /* never crash UI */ }
   },
 

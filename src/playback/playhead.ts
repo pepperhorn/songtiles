@@ -61,8 +61,15 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
   const startSeg = segments[0];
   const heads: Array<{ seg: Segment; beat: number }> = [{ seg: startSeg, beat: 0 }];
 
+  // Cycle guard: dense graphs (e.g. a row + column adjacent forming a 2xN
+  // grid) produce cycles in the segment-children relation. Without this set,
+  // BFS heads grow exponentially each tick and freeze the app.
+  const visitedSegs = new Set<string>();
+
   while (heads.length) {
     const { seg, beat } = heads.shift()!;
+    if (visitedSegs.has(seg.rootId)) continue;
+    visitedSegs.add(seg.rootId);
     let beatsConsumed = 0;
 
     let activeBass: { midi: number; startBeat: number } | null = null;
@@ -110,7 +117,7 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
 
       if (unfired.length === 0) {
         // Plain sequential note.
-        emit({ midi: t.pitch, when, duration: beatSec, velocity: 0.8 });
+        emit({ midi: t.pitch, when, duration: beatSec, velocity: 0.8, tileId: item.id });
         if (t.bass) {
           closeBass(beat + beatOffset);
           const pc = ((t.pitch % 12) + 12) % 12;
@@ -136,7 +143,7 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
           // sustains for as many ticks as it has notes).
           const dur = N * beatSec;
           for (const nt of noteTiles) {
-            emit({ midi: nt.pitch, when, duration: dur, velocity: 0.8 });
+            emit({ midi: nt.pitch, when, duration: dur, velocity: 0.8, tileId: nt.id });
           }
         } else if (p.kind === 'arp') {
           // 2N pulses over N beats: each pulse 0.5 * beatSec; cycle through
@@ -150,6 +157,7 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
               when: when + k * pulseSec,
               duration: pulseSec,
               velocity: 0.8,
+              tileId: nt.id,
             });
           }
         }
@@ -160,7 +168,27 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
 
     let b = 0;
 
-    const fireRange = (from: number, to: number, beatStart: number): { beatsAdded: number; aborted: boolean } => {
+    // Look up a sibling segment by its root tile id (branches off mid-section
+    // intersections store tile ids of branch roots; the BFS queue takes Segment
+    // refs).
+    const segByRoot = new Map<TileId, Segment>();
+    for (const s of segments) segByRoot.set(s.rootId, s);
+
+    // Queue mid-section branches for the given intersection tile, if any.
+    // Only called on the final pass through the repeat span.
+    const queueBranches = (tileId: TileId, atBeat: number) => {
+      const branches = seg.branchesByTile?.[tileId];
+      if (!branches) return;
+      for (const branchRoot of branches) {
+        const child = segByRoot.get(branchRoot);
+        if (child) heads.push({ seg: child, beat: atBeat });
+      }
+    };
+
+    const fireRange = (
+      from: number, to: number, beatStart: number,
+      allowBranches: boolean,
+    ): { beatsAdded: number; aborted: boolean } => {
       let localB = beatStart;
       let i = from;
       while (i < to) {
@@ -168,22 +196,28 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
         if (span) {
           const reps = span.count === 'inf' ? 1 : span.count;
           for (let r = 0; r < reps; r++) {
-            const inner = fireRange(span.openIndex + 1, span.closeIndex, localB);
+            const isLast = r === reps - 1;
+            const inner = fireRange(span.openIndex + 1, span.closeIndex, localB, isLast);
             if (inner.aborted) return { beatsAdded: localB - beatStart + inner.beatsAdded, aborted: true };
             localB += inner.beatsAdded;
           }
           i = span.closeIndex + 1;
           continue;
         }
+        const tileBeat = localB;
         const res = fireIndex(i, localB);
         if (res.aborted) { closeBass(beat + localB); return { beatsAdded: localB - beatStart, aborted: true }; }
+        // Fork mid-section branches off this tile only on the final loop pass.
+        if (allowBranches && res.beats > 0) {
+          queueBranches(path[i].id, beat + tileBeat + res.beats);
+        }
         localB += res.beats;
         i++;
       }
       return { beatsAdded: localB - beatStart, aborted: false };
     };
 
-    const result = fireRange(0, path.length, 0);
+    const result = fireRange(0, path.length, 0, true);
     if (!result.aborted) {
       b = result.beatsAdded;
       closeBass(beat + b);

@@ -78,6 +78,48 @@ describe('advancePlayhead — bass mode', () => {
   });
 });
 
+describe('advancePlayhead — repeat tiles with branch on final pass', () => {
+  it('branches off a mid-section intersection only fire on the final loop pass', () => {
+    // Horizontal section: [open]-a-b-c-[close]; b is also adjacent to a tile x
+    // hanging below it. With count=2, expected:
+    //   pass 1: a, b, c   (no branch)
+    //   pass 2: a, b, c   (branch fires once, at the beat after b in pass 2)
+    //   x fires once total at beat (a + b in pass 2 + 1) = beat 5.
+    const tiles: Record<TileId, Tile> = {
+      o: { id: 'o', cell: { x: 0, y: 0 }, kind: 'repeat-open', count: 2 } as Tile,
+      a: n('a', 1, 0, 60),
+      b: n('b', 2, 0, 62),
+      c: n('c', 3, 0, 64),
+      cl: { id: 'cl', cell: { x: 4, y: 0 }, kind: 'repeat-close' } as Tile,
+      x: n('x', 2, 1, 67),                 // branch off b downward
+    };
+    const byCell: Record<string, TileId> = {
+      '0,0': 'o', '1,0': 'a', '2,0': 'b', '3,0': 'c', '4,0': 'cl', '2,1': 'x',
+    };
+    const segs = computeSegments('o', tiles, byCell);
+    const events: ScheduledNote[] = [];
+    advancePlayhead({
+      segments: segs, tiles, paints: {},
+      startTime: 0, beatSec: 1, windowEnd: 100,
+      emit: ev => events.push(ev),
+    });
+    const noteEvents = events.filter(e => e.midi !== 36 + (60 % 12)); // ignore any bass artefacts
+    // a beats: 0 (pass 1), 3 (pass 2). b: 1, 4. c: 2, 5. x fires once at beat 5
+    // (one beat after b in pass 2).
+    const at = (when: number) =>
+      noteEvents.filter(e => Math.abs(e.when - when) < 1e-9).map(e => e.midi).sort((p, q) => p - q);
+    expect(at(0)).toEqual([60]);          // a pass 1
+    expect(at(1)).toEqual([62]);          // b pass 1 — no branch
+    expect(at(2)).toEqual([64]);          // c pass 1
+    expect(at(3)).toEqual([60]);          // a pass 2
+    expect(at(4)).toEqual([62]);          // b pass 2
+    // x (67) fires at the beat right after b's pass-2 beat — beat 5.
+    expect(at(5)).toEqual([64, 67].sort((p, q) => p - q));
+    // Total: 6 main events + 1 branch = 7. (No earlier x.)
+    expect(noteEvents.length).toBe(7);
+  });
+});
+
 describe('advancePlayhead — repeat tiles', () => {
   it('finite repeat replays the section count times (open/close consume 0 beats)', () => {
     const tiles: Record<TileId, Tile> = {
