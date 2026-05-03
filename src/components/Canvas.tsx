@@ -5,7 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
-import { computeSegments, findPositionalRepeatPairs } from '../graph/segments';
+import { findPositionalRepeatPairs } from '../graph/segments';
 import type { TileId } from '../graph/types';
 
 const CELL = 96;
@@ -17,7 +17,6 @@ export function Canvas() {
   const tiles = useAppStore(s => s.tiles);
   const byCell = useAppStore(s => s.byCell);
   const startTileId = useAppStore(s => s.startTileId);
-  const selectedTileId = useAppStore(s => s.selectedTileId);
   const paints = useAppStore(s => s.paints);
   const paintTool = useAppStore(s => s.paintTool);
   const paintingTileIds = useAppStore(s => s.paintingTileIds);
@@ -85,16 +84,6 @@ export function Canvas() {
     const vert = has(0, 1) || has(0, -1);
     return !horiz && vert ? 'v' : 'h';
   };
-
-  // Compute the set of tile ids in the same segment as the currently-selected
-  // tile so the canvas can outline them as the "scope" of the detail panel's
-  // mode/hold/bass controls. Empty set when nothing's selected.
-  const highlightedSegment = (() => {
-    if (!selectedTileId || !startTileId) return new Set<string>();
-    const segs = computeSegments(startTileId, tiles, byCell);
-    const seg = segs.find(s => s.tiles.includes(selectedTileId));
-    return new Set(seg?.tiles ?? []);
-  })();
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -388,6 +377,10 @@ export function Canvas() {
         s.removeTileFromAllPaints(id);
         return;
       }
+      if (s.paintTool === 'bass') {
+        s.toggleBass(id);
+        return;
+      }
       // Toggle membership: tapping a tile already in the in-progress paint
       // removes it; otherwise adds it. Preview pitch so the user hears coverage.
       s.togglePaintMembership(id);
@@ -412,13 +405,11 @@ export function Canvas() {
     const onUp = () => {
       if (!active) return;
       active = false;
-      // Auto-commit chord/arp paints on release (eraser doesn't commit).
+      // Auto-commit chord/arp paints on release (eraser/bass don't commit).
       const s = useAppStore.getState();
-      if (s.paintTool !== 'eraser' && s.paintingTileIds.length >= 2) {
-        s.commitPaint();
-      } else if (s.paintTool !== 'eraser') {
-        // <2 tiles: just clear the in-progress selection.
-        useAppStore.setState({ paintingTileIds: [] });
+      if (s.paintTool === 'chord' || s.paintTool === 'arp') {
+        if (s.paintingTileIds.length >= 2) s.commitPaint();
+        else useAppStore.setState({ paintingTileIds: [] });
       }
     };
 
@@ -496,7 +487,6 @@ export function Canvas() {
             }))
           );
           const isWiggling = wiggle?.id === t.id;
-          const isInScope = highlightedSegment.has(t.id);
           const tilePaints = tilePaintKinds.get(t.id);
           const inProgress = paintingSet.has(t.id);
           const inRepeatSection = repeatSectionTiles.has(t.id);
@@ -513,17 +503,6 @@ export function Canvas() {
               onClick={(e) => handleTileClick(e, t.id)}
               {...(paintTool ? {} : attachLongPressDragOff(t.id))}
             >
-              {isInScope && !paintTool && (
-                <div
-                  className="segment-scope-ring absolute pointer-events-none"
-                  style={{
-                    inset: -3,
-                    borderRadius: 17,
-                    boxShadow: `0 0 0 2px ${tokens.tilePlayhead}`,
-                    opacity: 0.55,
-                  }}
-                />
-              )}
               {inProgress && (
                 <div
                   className="paint-in-progress-ring absolute pointer-events-none"

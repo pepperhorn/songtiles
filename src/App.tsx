@@ -4,7 +4,6 @@ import { useAppStore } from './state/store';
 import { deserialiseSession } from './state/persistence';
 import { Canvas } from './components/Canvas';
 import { Tray } from './components/Tray';
-import { DetailPanel } from './components/DetailPanel';
 import { SetupModal } from './components/SetupModal';
 import { SoundPicker } from './components/SoundPicker';
 import { PaintToolbar } from './components/PaintToolbar';
@@ -90,7 +89,6 @@ function Inner() {
         </div>
       )}
       <Canvas />
-      <DetailPanel />
       <Tray />
 
       <div

@@ -27,6 +27,6 @@ export interface Paint {
   kind: PaintKind;
   tileIds: TileId[];   // 2+ tiles, may be disconnected on the canvas
 }
-export type PaintTool = 'chord' | 'arp' | 'eraser' | null;
+export type PaintTool = 'chord' | 'arp' | 'bass' | 'eraser' | null;
 
 export const cellKey = (c: Cell) => `${c.x},${c.y}`;

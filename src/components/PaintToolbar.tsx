@@ -6,6 +6,7 @@ import type { PaintTool } from '../graph/types';
 const TOOLS: Array<{ tool: Exclude<PaintTool, null>; label: string; icon: string }> = [
   { tool: 'chord',  label: 'Chord',  icon: '♬' },
   { tool: 'arp',    label: 'Arp',    icon: '∿' },
+  { tool: 'bass',   label: 'Bass',   icon: '↓' },
   { tool: 'eraser', label: 'Erase',  icon: '⌫' },
 ];
 
@@ -23,6 +24,7 @@ export function PaintToolbar() {
   const TOOL_COLOR: Record<Exclude<PaintTool, null>, string> = {
     chord: '#3b82f6',
     arp: '#a855f7',
+    bass: '#0ea5e9',
     eraser: '#ef4444',
   };
 
