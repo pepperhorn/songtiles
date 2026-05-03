@@ -190,9 +190,10 @@ function Inner() {
           style={{
             ...btnStyle,
             pointerEvents: 'auto',
-            background: '#0a1f0d',
-            color: '#22c55e',
-            boxShadow: `${tokens.tileShadow}, inset 0 0 0 1px rgba(34, 197, 94, 0.4)`,
+            background: isPlaying ? '#374151' : '#16a34a',
+            color: '#ffffff',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.45)',
+            boxShadow: tokens.tileShadow,
           }}
           onClick={() => isPlaying ? stop() : play()}
         >
