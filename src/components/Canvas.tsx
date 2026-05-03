@@ -12,6 +12,55 @@ const CELL = 96;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.5;
 
+/**
+ * Wraps the union of a tile group with an outline that has no internal
+ * seams. For each side of the tile we draw a 3px line only when the
+ * orthogonal neighbour is NOT in the same group; perpendicular ends extend
+ * 1px into the 2px tile gap so adjacent same-group sides meet seamlessly.
+ */
+function WrapOutline({
+  cell, byCell, groupSet, color, thickness = 3,
+}: {
+  cell: { x: number; y: number };
+  byCell: Record<string, TileId>;
+  groupSet: Set<TileId>;
+  color: string;
+  thickness?: number;
+}) {
+  const inGroup = (dx: number, dy: number): boolean => {
+    const nbr = byCell[`${cell.x + dx},${cell.y + dy}`];
+    return !!nbr && groupSet.has(nbr);
+  };
+  const top = !inGroup(0, -1);
+  const right = !inGroup(1, 0);
+  const bottom = !inGroup(0, 1);
+  const left = !inGroup(-1, 0);
+  const stubL = inGroup(-1, 0) ? 1 : 0;
+  const stubR = inGroup(1, 0) ? 1 : 0;
+  const stubT = inGroup(0, -1) ? 1 : 0;
+  const stubB = inGroup(0, 1) ? 1 : 0;
+  return (
+    <>
+      {top && (
+        <div className="wrap-outline-top absolute pointer-events-none"
+          style={{ top: -thickness, left: -stubL, right: -stubR, height: thickness, background: color }} />
+      )}
+      {bottom && (
+        <div className="wrap-outline-bottom absolute pointer-events-none"
+          style={{ bottom: -thickness, left: -stubL, right: -stubR, height: thickness, background: color }} />
+      )}
+      {left && (
+        <div className="wrap-outline-left absolute pointer-events-none"
+          style={{ left: -thickness, top: -stubT, bottom: -stubB, width: thickness, background: color }} />
+      )}
+      {right && (
+        <div className="wrap-outline-right absolute pointer-events-none"
+          style={{ right: -thickness, top: -stubT, bottom: -stubB, width: thickness, background: color }} />
+      )}
+    </>
+  );
+}
+
 export function Canvas() {
   const { tokens } = useTheme();
   const tiles = useAppStore(s => s.tiles);
@@ -42,6 +91,20 @@ export function Canvas() {
     return map;
   })();
   const paintingSet = new Set(paintingTileIds);
+
+  // Group tiles by their effective paint signature so the wrap outline draws
+  // around the union shape (no internal seams between tiles in the same
+  // group). Tiles in BOTH a chord and an arp paint go in `both` (magenta).
+  const chordOnlySet = new Set<TileId>();
+  const arpOnlySet = new Set<TileId>();
+  const bothSet = new Set<TileId>();
+  for (const [tid, kinds] of tilePaintKinds) {
+    const c = kinds.has('chord');
+    const a = kinds.has('arp');
+    if (c && a) bothSet.add(tid);
+    else if (c) chordOnlySet.add(tid);
+    else if (a) arpOnlySet.add(tid);
+  }
 
   // Repeat sections (visual): pair repeats positionally — same row/col with
   // no gaps. Uses the shared helper so playback honours the same pairs.
@@ -489,11 +552,19 @@ export function Canvas() {
           const isWiggling = wiggle?.id === t.id;
           const tilePaints = tilePaintKinds.get(t.id);
           const inProgress = paintingSet.has(t.id);
-          const inRepeatSection = repeatSectionTiles.has(t.id);
           const isActive = !!activeTiles[t.id];
-          const hasChord = tilePaints?.has('chord');
-          const hasArp = tilePaints?.has('arp');
-          const paintBorderColor = hasChord && hasArp ? PAINT_BOTH : hasChord ? PAINT_CHORD : hasArp ? PAINT_ARP : null;
+          // Pick the paint group set (and colour) this tile belongs to.
+          const paintGroupSet = bothSet.has(t.id) ? bothSet
+            : chordOnlySet.has(t.id) ? chordOnlySet
+            : arpOnlySet.has(t.id) ? arpOnlySet
+            : null;
+          const paintGroupColor = bothSet.has(t.id) ? PAINT_BOTH
+            : chordOnlySet.has(t.id) ? PAINT_CHORD
+            : arpOnlySet.has(t.id) ? PAINT_ARP
+            : null;
+          // Find the repeat-section pair this tile belongs to (if any) so its
+          // wrap outline only counts other tiles in THE SAME pair as in-group.
+          const repeatPair = positionalPairs.find(p => p.lineIds.includes(t.id));
           return (
             <div
               key={t.id}
@@ -514,25 +585,20 @@ export function Canvas() {
                   }}
                 />
               )}
-              {paintBorderColor && (
-                <div
-                  className="paint-border absolute pointer-events-none"
-                  style={{
-                    inset: -2,
-                    borderRadius: 16,
-                    boxShadow: `0 0 0 3px ${paintBorderColor}`,
-                  }}
+              {paintGroupSet && paintGroupColor && (
+                <WrapOutline
+                  cell={cell}
+                  byCell={byCell}
+                  groupSet={paintGroupSet}
+                  color={paintGroupColor}
                 />
               )}
-              {inRepeatSection && (
-                <div
-                  className="repeat-section-ring absolute pointer-events-none"
-                  style={{
-                    inset: -4,
-                    borderRadius: 18,
-                    boxShadow: '0 0 0 3px #facc15',
-                    opacity: 0.9,
-                  }}
+              {repeatPair && (
+                <WrapOutline
+                  cell={cell}
+                  byCell={byCell}
+                  groupSet={new Set(repeatPair.lineIds)}
+                  color="#facc15"
                 />
               )}
               {isActive && (
