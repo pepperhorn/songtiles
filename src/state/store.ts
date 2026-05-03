@@ -78,7 +78,7 @@ const baseDefaults = {
   trayCapacity: 8 as TrayCapacity,
   repeatPoolSize: 5 as RepeatPoolSize,
   repeatSetsRemaining: 5,
-  bpm: 120,
+  bpm: 240,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
 };

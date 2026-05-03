@@ -208,4 +208,43 @@ describe('advancePlayhead — branching at intersection (M10)', () => {
     expect(atBeat(3)).toEqual([65, 67]);
     expect(emitted).toHaveLength(5);
   });
+
+  it('T-shape with longer stem: stem fires sequentially, then both branches together', () => {
+    // The user's reported case:
+    //   a (0,0)        ← start
+    //   b (0,1)
+    //   c (0,2)        ← intersection (3 neighbours)  c--d--e to the right
+    //   d (1,2) e (2,2)
+    //   f (0,3)        ← below c
+    const tiles: Record<TileId, Tile> = {
+      a: n('a', 0, 0, 70), b: n('b', 0, 1, 71), c: n('c', 0, 2, 72),
+      d: n('d', 1, 2, 73), e: n('e', 2, 2, 74),
+      f: n('f', 0, 3, 75),
+    };
+    const byCell: Record<string, TileId> = {
+      '0,0': 'a', '0,1': 'b', '0,2': 'c', '1,2': 'd', '2,2': 'e', '0,3': 'f',
+    };
+    const segs = computeSegments('a', tiles, byCell);
+
+    const emitted: ScheduledNote[] = [];
+    advancePlayhead({
+      segments: segs,
+      segmentSettings: {},
+      tiles,
+      startTime: 0,
+      beatSec: 0.5,
+      windowEnd: 10,
+      emit: note => emitted.push(note),
+    });
+
+    const atBeat = (beat: number) =>
+      emitted.filter(ev => Math.abs(ev.when - beat * 0.5) < 1e-9).map(ev => ev.midi).sort((x, y) => x - y);
+
+    expect(atBeat(0)).toEqual([70]);              // a alone
+    expect(atBeat(1)).toEqual([71]);              // b alone
+    expect(atBeat(2)).toEqual([72]);              // c (intersection) alone
+    expect(atBeat(3)).toEqual([73, 75]);          // d (right branch first tile) + f (down branch)
+    expect(atBeat(4)).toEqual([74]);              // e (continuation of right branch)
+    expect(emitted).toHaveLength(6);
+  });
 });
