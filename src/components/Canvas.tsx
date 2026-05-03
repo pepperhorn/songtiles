@@ -12,143 +12,6 @@ const CELL = 96;
 const ZOOM_MIN = 0.4;
 const ZOOM_MAX = 2.5;
 
-/**
- * Compute closed boundary polygons around a set of grid cells. Each cell
- * occupies CELL × CELL pixels in world space, inset by 1px to leave the
- * 2px tile gap. Returns a list of polygons (one per disconnected region).
- */
-function buildGroupPolygons(
-  cells: Array<{ x: number; y: number }>,
-  inset: number = 1,
-): Array<Array<[number, number]>> {
-  if (cells.length === 0) return [];
-  const cellSet = new Set(cells.map(c => `${c.x},${c.y}`));
-  const has = (x: number, y: number) => cellSet.has(`${x},${y}`);
-  // Each boundary edge is one side of a cell whose orthogonal neighbour is
-  // outside the group. Edges are oriented so following them traces the
-  // outer boundary clockwise (in screen coords, where y grows down).
-  const lo = inset;
-  const hi = CELL - inset;
-  const edges: Array<{ from: [number, number]; to: [number, number] }> = [];
-  for (const c of cells) {
-    const x0 = c.x * CELL + lo, y0 = c.y * CELL + lo;
-    const x1 = c.x * CELL + hi, y1 = c.y * CELL + hi;
-    if (!has(c.x, c.y - 1)) edges.push({ from: [x0, y0], to: [x1, y0] });   // top L→R
-    if (!has(c.x + 1, c.y)) edges.push({ from: [x1, y0], to: [x1, y1] });   // right T→B
-    if (!has(c.x, c.y + 1)) edges.push({ from: [x1, y1], to: [x0, y1] });   // bottom R→L
-    if (!has(c.x - 1, c.y)) edges.push({ from: [x0, y1], to: [x0, y0] });   // left B→T
-  }
-  // Index by start point so we can chain edges into closed polygons.
-  const byStart = new Map<string, number[]>();
-  edges.forEach((e, i) => {
-    const k = `${e.from[0]},${e.from[1]}`;
-    const arr = byStart.get(k) ?? [];
-    arr.push(i);
-    byStart.set(k, arr);
-  });
-  const used = new Set<number>();
-  const polygons: Array<Array<[number, number]>> = [];
-  for (let i = 0; i < edges.length; i++) {
-    if (used.has(i)) continue;
-    const poly: Array<[number, number]> = [edges[i].from];
-    let curIdx = i;
-    while (!used.has(curIdx)) {
-      used.add(curIdx);
-      const end = edges[curIdx].to;
-      poly.push(end);
-      const candidates = byStart.get(`${end[0]},${end[1]}`) ?? [];
-      const nextIdx = candidates.find(j => !used.has(j));
-      if (nextIdx === undefined) break;
-      curIdx = nextIdx;
-    }
-    // Drop the duplicate closing point and merge collinear runs.
-    if (poly.length > 1 &&
-        poly[0][0] === poly[poly.length - 1][0] &&
-        poly[0][1] === poly[poly.length - 1][1]) {
-      poly.pop();
-    }
-    const merged: Array<[number, number]> = [];
-    for (const p of poly) {
-      const a = merged[merged.length - 2];
-      const b = merged[merged.length - 1];
-      if (a && b && (b[0] - a[0]) * (p[1] - b[1]) === (b[1] - a[1]) * (p[0] - b[0])) {
-        merged[merged.length - 1] = p;
-      } else {
-        merged.push(p);
-      }
-    }
-    polygons.push(merged);
-  }
-  return polygons;
-}
-
-/**
- * Render outlines for one or more cell groups as a single SVG overlay.
- * Each polygon uses `stroke-linejoin: round` and a corner-rounding radius so
- * outer corners are smooth and inner notches still meet cleanly.
- */
-function GroupOutlines({
-  groups,
-}: {
-  groups: Array<{ cells: Array<{ x: number; y: number }>; color: string }>;
-}) {
-  if (groups.length === 0) return null;
-  const radius = 8;
-  const stroke = 3;
-  return (
-    <svg
-      className="group-outlines absolute pointer-events-none"
-      style={{ left: 0, top: 0, width: 0, height: 0, overflow: 'visible' }}
-      aria-hidden
-    >
-      {groups.map((g, gi) => {
-        const polys = buildGroupPolygons(g.cells);
-        return polys.map((points, pi) => (
-          <path
-            key={`${gi}-${pi}`}
-            d={roundedPolygonPath(points, radius)}
-            fill="none"
-            stroke={g.color}
-            strokeWidth={stroke}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        ));
-      })}
-    </svg>
-  );
-}
-
-/**
- * Build an SVG path string for a closed polygon with rounded corners. Each
- * vertex is replaced by a quadratic curve that arcs through it, giving
- * smooth corners regardless of inside/outside turn direction.
- */
-function roundedPolygonPath(points: Array<[number, number]>, r: number): string {
-  if (points.length < 3) return '';
-  const n = points.length;
-  const parts: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const prev = points[(i - 1 + n) % n];
-    const cur = points[i];
-    const next = points[(i + 1) % n];
-    const v1x = cur[0] - prev[0], v1y = cur[1] - prev[1];
-    const v2x = next[0] - cur[0], v2y = next[1] - cur[1];
-    const v1len = Math.hypot(v1x, v1y) || 1;
-    const v2len = Math.hypot(v2x, v2y) || 1;
-    const safeR = Math.min(r, v1len / 2, v2len / 2);
-    const ax = cur[0] - (v1x / v1len) * safeR;
-    const ay = cur[1] - (v1y / v1len) * safeR;
-    const bx = cur[0] + (v2x / v2len) * safeR;
-    const by = cur[1] + (v2y / v2len) * safeR;
-    if (i === 0) parts.push(`M ${ax} ${ay}`);
-    else parts.push(`L ${ax} ${ay}`);
-    parts.push(`Q ${cur[0]} ${cur[1]} ${bx} ${by}`);
-  }
-  parts.push('Z');
-  return parts.join(' ');
-}
-
 export function Canvas() {
   const { tokens } = useTheme();
   const tiles = useAppStore(s => s.tiles);
@@ -622,20 +485,6 @@ export function Canvas() {
           transformOrigin: 'top left',
         }}
       >
-        <GroupOutlines
-          groups={(() => {
-            const out: Array<{ cells: Array<{ x: number; y: number }>; color: string }> = [];
-            const cellsFromIds = (ids: TileId[]) =>
-              ids.map(id => tiles[id]?.cell).filter((c): c is { x: number; y: number } => !!c);
-            if (chordOnlySet.size > 0) out.push({ cells: cellsFromIds([...chordOnlySet]), color: PAINT_CHORD });
-            if (arpOnlySet.size > 0)   out.push({ cells: cellsFromIds([...arpOnlySet]),   color: PAINT_ARP });
-            if (bothSet.size > 0)      out.push({ cells: cellsFromIds([...bothSet]),      color: PAINT_BOTH });
-            for (const p of positionalPairs) {
-              out.push({ cells: cellsFromIds(p.lineIds), color: '#facc15' });
-            }
-            return out;
-          })()}
-        />
         {placedTiles.map(t => {
           const cell = t.cell!;
           const isStart = t.id === startTileId;
@@ -712,6 +561,21 @@ export function Canvas() {
                 size={CELL - 2}
                 orientation={t.kind === 'repeat' ? repeatOrientation(t.id) : 'h'}
                 repeatSide={t.kind === 'repeat' ? (repeatSideById.get(t.id) ?? 'open') : 'open'}
+                shadow={(() => {
+                  // Tint the chunky drop-shadow by group membership. A tile
+                  // in a paint AND a repeat section gets two stacked colour
+                  // shadows (paint inner + repeat outer) for a layered-card
+                  // feel.
+                  const colors: string[] = [];
+                  if (bothSet.has(t.id))      colors.push(PAINT_BOTH);
+                  else if (chordOnlySet.has(t.id)) colors.push(PAINT_CHORD);
+                  else if (arpOnlySet.has(t.id))   colors.push(PAINT_ARP);
+                  if (repeatSectionTiles.has(t.id)) colors.push('#facc15');
+                  if (colors.length === 0) return undefined;
+                  if (colors.length === 1) return `3px 3px 0 0 ${colors[0]}, 4px 4px 0 1px var(--chunky-edge)`;
+                  // Two-group stack: paint at 3px, repeat at 7px, edge at 8px.
+                  return `3px 3px 0 0 ${colors[0]}, 7px 7px 0 0 ${colors[1]}, 8px 8px 0 1px var(--chunky-edge)`;
+                })()}
               />
             </div>
           );

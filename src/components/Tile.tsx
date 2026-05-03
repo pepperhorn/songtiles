@@ -37,13 +37,15 @@ function RepeatGlyph({ side, size }: { side: 'open' | 'close'; size: number }) {
 }
 
 export function Tile({
-  tile, size = 96, dimmed = false, orientation = 'h', repeatSide = 'open',
+  tile, size = 96, dimmed = false, orientation = 'h', repeatSide = 'open', shadow,
 }: {
   tile: TileT;
   size?: number;
   dimmed?: boolean;
   orientation?: 'h' | 'v';
   repeatSide?: 'open' | 'close';
+  /** Override the chunky drop shadow (e.g. tint by paint/repeat membership). */
+  shadow?: string;
 }) {
   const { tokens } = useTheme();
   if (tile.kind === 'note') {
@@ -56,7 +58,7 @@ export function Tile({
           width: size, height: size, borderRadius: 14,
           background: tokens.noteBg(pc), color: '#fff',
           border: '2px solid var(--chunky-edge)',
-          boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
+          boxShadow: `${shadow ?? tokens.tileShadow}, ${tokens.tileBevel}`,
           opacity: dimmed ? 0.4 : 1,
         }}
       >
@@ -100,7 +102,7 @@ export function Tile({
           width: size, height: size, borderRadius: 14,
           background: tokens.trayBg, color: tokens.textPrimary,
           border: '2px solid var(--chunky-edge)',
-          boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
+          boxShadow: `${shadow ?? tokens.tileShadow}, ${tokens.tileBevel}`,
           overflow: 'hidden',
         }}
       >
