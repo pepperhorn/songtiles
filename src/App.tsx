@@ -103,7 +103,7 @@ function Inner() {
         }}
       >
         <button
-          className="new-game-btn px-3 py-2 rounded-full font-medium text-sm"
+          className="new-game-btn px-3 py-2 rounded-lg font-medium text-sm"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
           onClick={newGame}
           aria-label="new game"
@@ -111,25 +111,25 @@ function Inner() {
           New
         </button>
         <button
-          className="save-btn px-3 py-2 rounded-full font-medium text-sm"
+          className="save-btn px-3 py-2 rounded-lg font-medium text-sm"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
           onClick={() => saveToFile()}
         >
           Save
         </button>
         <button
-          className="load-btn px-3 py-2 rounded-full font-medium text-sm"
+          className="load-btn px-3 py-2 rounded-lg font-medium text-sm"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
           onClick={() => fileInputRef.current?.click()}
         >
           Load
         </button>
         <div
-          className="bpm-control flex items-center gap-1 rounded-full px-2 py-1"
+          className="bpm-control flex items-center gap-1 rounded-lg px-2 py-1"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
         >
           <button
-            className="bpm-down w-9 h-9 rounded-full font-semibold text-base grid place-items-center"
+            className="bpm-down w-9 h-9 rounded-lg font-semibold text-base grid place-items-center"
             style={{ background: tokens.canvasBg, color: tokens.textPrimary }}
             aria-label="bpm down"
             onClick={() => setBpm(bpm - 4)}
@@ -140,7 +140,7 @@ function Inner() {
             {bpm} bpm
           </span>
           <button
-            className="bpm-up w-9 h-9 rounded-full font-semibold text-base grid place-items-center"
+            className="bpm-up w-9 h-9 rounded-lg font-semibold text-base grid place-items-center"
             style={{ background: tokens.canvasBg, color: tokens.textPrimary }}
             aria-label="bpm up"
             onClick={() => setBpm(bpm + 4)}
@@ -151,7 +151,7 @@ function Inner() {
         <PaintToolbar />
         <SoundPicker />
         <button
-          className="theme-toggle px-3 py-2 rounded-full font-medium text-sm grid place-items-center"
+          className="theme-toggle px-3 py-2 rounded-lg font-medium text-sm grid place-items-center"
           style={{ ...btnStyle, pointerEvents: 'auto' }}
           onClick={() => setMode(mode === 'dark' ? 'light' : 'dark')}
           aria-label={mode === 'dark' ? 'switch to light theme' : 'switch to dark theme'}
@@ -162,7 +162,7 @@ function Inner() {
           </span>
         </button>
         <button
-          className="record-btn px-3 py-2 rounded-full font-medium text-sm grid place-items-center"
+          className="record-btn px-3 py-2 rounded-lg font-medium text-sm grid place-items-center"
           style={{
             ...btnStyle,
             pointerEvents: 'auto',
@@ -186,7 +186,7 @@ function Inner() {
           </span>
         </button>
         <button
-          className="play-stop px-4 py-2 rounded-full font-semibold text-sm"
+          className="play-stop px-4 py-2 rounded-lg font-semibold text-sm"
           style={{
             ...btnStyle,
             pointerEvents: 'auto',

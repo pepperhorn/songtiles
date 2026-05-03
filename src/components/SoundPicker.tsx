@@ -63,7 +63,7 @@ export function SoundPicker() {
   return (
     <>
       <button
-        className="sound-picker-btn px-3 py-2 rounded-full font-medium text-sm grid place-items-center"
+        className="sound-picker-btn px-3 py-2 rounded-lg font-medium text-sm grid place-items-center"
         style={{ ...btnStyle, pointerEvents: 'auto' }}
         onClick={() => setOpen(true)}
         aria-label="open sound picker"
