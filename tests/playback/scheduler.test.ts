@@ -29,7 +29,7 @@ describe('createScheduler', () => {
       emit: n => emitted.push(n),
       getSnapshot: () => ({
         segments,
-        segmentSettings: {},
+        paints: {},
         tiles,
         bpm: 120,
       }),
@@ -58,7 +58,7 @@ describe('createScheduler', () => {
     const scheduler = createScheduler({
       now: () => fakeTime,
       emit: n => emitted.push(n),
-      getSnapshot: () => ({ segments, segmentSettings: {}, tiles, bpm: 60 }),
+      getSnapshot: () => ({ segments, tiles, paints: {}, bpm: 60 }),
     });
 
     scheduler.start();
@@ -84,7 +84,7 @@ describe('createScheduler', () => {
     const scheduler = createScheduler({
       now: () => fakeTime,
       emit: n => emitted.push(n),
-      getSnapshot: () => ({ segments, segmentSettings: {}, tiles, bpm: 120 }),
+      getSnapshot: () => ({ segments, tiles, paints: {}, bpm: 120 }),
     });
 
     scheduler.start();

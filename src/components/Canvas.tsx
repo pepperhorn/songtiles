@@ -6,6 +6,7 @@ import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
 import { computeSegments } from '../graph/segments';
+import type { TileId } from '../graph/types';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -17,6 +18,23 @@ export function Canvas() {
   const byCell = useAppStore(s => s.byCell);
   const startTileId = useAppStore(s => s.startTileId);
   const selectedTileId = useAppStore(s => s.selectedTileId);
+  const paints = useAppStore(s => s.paints);
+  const paintTool = useAppStore(s => s.paintTool);
+  const paintingTileIds = useAppStore(s => s.paintingTileIds);
+
+  // Index tile ids → set of paint kinds for quick badge rendering.
+  const tilePaintKinds = (() => {
+    const map = new Map<TileId, Set<'chord'|'arp'>>();
+    for (const p of Object.values(paints)) {
+      for (const tid of p.tileIds) {
+        const set = map.get(tid) ?? new Set();
+        set.add(p.kind);
+        map.set(tid, set);
+      }
+    }
+    return map;
+  })();
+  const paintingSet = new Set(paintingTileIds);
 
   // Compute the set of tile ids in the same segment as the currently-selected
   // tile so the canvas can outline them as the "scope" of the detail panel's
@@ -139,6 +157,14 @@ export function Canvas() {
     const t = s.tiles[id];
     if (!t) return;
 
+    // Paint mode short-circuits the normal tap behaviour.
+    if (s.paintTool) {
+      s.togglePaintMembership(id);
+      // Still preview the pitch so the user can hear what they're painting.
+      if (t.kind === 'note' && s.paintTool !== 'eraser') s.previewNote(t.pitch);
+      return;
+    }
+
     // Double-tap detection: second tap on same tile within 300ms toggles bass
     // (note tiles only). The first tap of the pair has already fired its
     // single-tap actions, which is fine — they're idempotent.
@@ -222,6 +248,8 @@ export function Canvas() {
           const isStart = t.id === startTileId;
           const isWiggling = wiggle?.id === t.id;
           const isInScope = highlightedSegment.has(t.id);
+          const tilePaints = tilePaintKinds.get(t.id);
+          const inProgress = paintingSet.has(t.id);
           return (
             <div
               key={t.id}
@@ -230,7 +258,7 @@ export function Canvas() {
               onClick={() => handleTileClick(t.id)}
               {...attachLongPressDragOff(t.id)}
             >
-              {isInScope && (
+              {isInScope && !paintTool && (
                 <div
                   className="segment-scope-ring absolute pointer-events-none"
                   style={{
@@ -240,6 +268,40 @@ export function Canvas() {
                     opacity: 0.55,
                   }}
                 />
+              )}
+              {inProgress && (
+                <div
+                  className="paint-in-progress-ring absolute pointer-events-none"
+                  style={{
+                    inset: -5,
+                    borderRadius: 19,
+                    boxShadow: `0 0 0 3px ${tokens.tilePlayhead}`,
+                    opacity: 0.9,
+                  }}
+                />
+              )}
+              {tilePaints && (
+                <div
+                  className="paint-badges absolute pointer-events-none flex gap-1"
+                  style={{ top: 4, left: 4 }}
+                >
+                  {tilePaints.has('chord') && (
+                    <span
+                      className="paint-badge-chord text-[10px] font-semibold rounded-full px-1.5"
+                      style={{ background: 'rgba(255,255,255,0.85)', color: '#000' }}
+                    >
+                      ♬
+                    </span>
+                  )}
+                  {tilePaints.has('arp') && (
+                    <span
+                      className="paint-badge-arp text-[10px] font-semibold rounded-full px-1.5"
+                      style={{ background: 'rgba(255,255,255,0.85)', color: '#000' }}
+                    >
+                      ∿
+                    </span>
+                  )}
+                </div>
               )}
               {isStart && (
                 <div

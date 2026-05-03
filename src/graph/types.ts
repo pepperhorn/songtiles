@@ -18,4 +18,13 @@ export interface SegmentSettings {
 export type TrayCapacity = 4|6|8|9|10|11|12;
 export type RepeatPoolSize = 3|5|8|12;
 
+export type PaintId = string;
+export type PaintKind = 'chord' | 'arp';
+export interface Paint {
+  id: PaintId;
+  kind: PaintKind;
+  tileIds: TileId[];   // 2+ tiles, may be disconnected on the canvas
+}
+export type PaintTool = 'chord' | 'arp' | 'eraser' | null;
+
 export const cellKey = (c: Cell) => `${c.x},${c.y}`;

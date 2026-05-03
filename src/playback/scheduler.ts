@@ -1,5 +1,5 @@
 import type { Segment } from '../graph/segments';
-import type { Tile, TileId, SegmentSettings } from '../graph/types';
+import type { Tile, TileId, Paint, PaintId } from '../graph/types';
 import type { ScheduledNote, ScheduleEmit } from './events';
 import { advancePlayhead } from './playhead';
 
@@ -8,8 +8,8 @@ const TICK_MS = 25;
 
 export interface SchedulerSnapshot {
   segments: Segment[];
-  segmentSettings: Record<TileId, SegmentSettings>;
   tiles: Record<TileId, Tile>;
+  paints: Record<PaintId, Paint>;
   bpm: number;
 }
 
@@ -44,8 +44,8 @@ export function createScheduler({ now, emit, getSnapshot }: SchedulerOptions): S
 
     advancePlayhead({
       segments: snapshot.segments,
-      segmentSettings: snapshot.segmentSettings,
       tiles: snapshot.tiles,
+      paints: snapshot.paints,
       startTime,
       beatSec,
       windowEnd,

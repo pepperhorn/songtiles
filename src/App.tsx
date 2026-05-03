@@ -7,6 +7,7 @@ import { Tray } from './components/Tray';
 import { DetailPanel } from './components/DetailPanel';
 import { SetupModal } from './components/SetupModal';
 import { SoundPicker } from './components/SoundPicker';
+import { PaintToolbar } from './components/PaintToolbar';
 
 function Inner() {
   const { tokens, mode, setMode } = useTheme();
@@ -124,6 +125,7 @@ function Inner() {
             +
           </button>
         </div>
+        <PaintToolbar />
         <SoundPicker />
         <button
           className="theme-toggle px-3 py-2 rounded-full font-medium text-sm grid place-items-center"

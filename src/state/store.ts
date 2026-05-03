@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize, Paint, PaintId, PaintTool, PaintKind } from '../graph/types';
 import { cellKey } from '../graph/types';
+import { newTileId } from '../utils/id';
 import { serialiseSession, deserialiseSession } from './persistence';
 import { createDeck, drawTo, returnToDeck, discardFromTray, type DeckRecord } from './deck';
 import { isAdjacentToGraph, isEndpoint, wouldDisconnect } from '../graph/adjacency';
@@ -45,6 +46,11 @@ export interface AppState {
   // Selected tile (for detail panel)
   selectedTileId: TileId | null;
 
+  // Paint mode: selecting tiles to form chords / arps / erase paints.
+  paints: Record<PaintId, Paint>;
+  paintTool: PaintTool;
+  paintingTileIds: TileId[];
+
   // Actions
   initSession(opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }): void;
   refillTray(): void;
@@ -64,6 +70,11 @@ export interface AppState {
   setBpm(bpm: number): void;
   saveToFile(): void;
   loadFromFile(file: File): Promise<void>;
+
+  setPaintTool(tool: PaintTool): void;
+  togglePaintMembership(id: TileId): void;
+  commitPaint(): void;
+  removeTileFromAllPaints(id: TileId): void;
 }
 
 const baseDefaults = {
@@ -81,6 +92,9 @@ const baseDefaults = {
   bpm: 240,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
+  paints: {} as Record<PaintId, Paint>,
+  paintTool: null as PaintTool,
+  paintingTileIds: [] as TileId[],
 };
 
 // Adapter: pull DeckRecord-shaped fields out of an AppState slice (note tiles only).
@@ -227,8 +241,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         const st = get();
         return {
           segments: st.startTileId ? computeSegments(st.startTileId, st.tiles, st.byCell) : [],
-          segmentSettings: st.segmentSettings,
           tiles: st.tiles,
+          paints: st.paints,
           bpm: st.bpm,
         };
       },
@@ -303,7 +317,75 @@ export const useAppStore = create<AppState>((set, get) => ({
       bpm: f.bpm, patchId: f.patchId, isPlaying: false,
     });
   },
+
+  // Paints ------------------------------------------------------------------
+
+  setPaintTool(tool) {
+    const s = get();
+    // Switching tools auto-commits any in-progress paint.
+    if ((s.paintTool === 'chord' || s.paintTool === 'arp') && s.paintingTileIds.length >= 2) {
+      commitInProgressPaint(set, get, s.paintTool);
+    } else if (s.paintingTileIds.length > 0) {
+      set({ paintingTileIds: [] });
+    }
+    set({ paintTool: tool });
+  },
+
+  togglePaintMembership(id) {
+    const s = get();
+    const tile = s.tiles[id];
+    if (!tile?.cell || tile.kind !== 'note') return;       // only placed note tiles
+    if (s.paintTool === 'eraser') {
+      get().removeTileFromAllPaints(id);
+      return;
+    }
+    if (s.paintTool !== 'chord' && s.paintTool !== 'arp') return;
+    const next = s.paintingTileIds.includes(id)
+      ? s.paintingTileIds.filter(t => t !== id)
+      : [...s.paintingTileIds, id];
+    set({ paintingTileIds: next });
+  },
+
+  commitPaint() {
+    const s = get();
+    if (s.paintTool !== 'chord' && s.paintTool !== 'arp') return;
+    if (s.paintingTileIds.length < 2) {
+      set({ paintingTileIds: [] });
+      return;
+    }
+    commitInProgressPaint(set, get, s.paintTool);
+  },
+
+  removeTileFromAllPaints(id) {
+    const s = get();
+    const next: Record<PaintId, Paint> = {};
+    for (const [pid, p] of Object.entries(s.paints)) {
+      const remaining = p.tileIds.filter(t => t !== id);
+      if (remaining.length >= 2) next[pid] = { ...p, tileIds: remaining };
+      // else: drop the paint entirely (fewer than 2 tiles left).
+    }
+    set({ paints: next });
+  },
 }));
+
+function commitInProgressPaint(
+  set: (partial: Partial<AppState>) => void,
+  get: () => AppState,
+  kind: PaintKind,
+) {
+  const s = get();
+  const ids = s.paintingTileIds.slice();
+  if (ids.length < 2) {
+    set({ paintingTileIds: [] });
+    return;
+  }
+  const id = `paint_${newTileId()}`;
+  const paint: Paint = { id, kind, tileIds: ids };
+  set({
+    paints: { ...s.paints, [id]: paint },
+    paintingTileIds: [],
+  });
+}
 
 // LocalStorage autosave — runs on every store mutation in browser environments.
 if (typeof window !== 'undefined') {

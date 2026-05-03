@@ -3,7 +3,7 @@ import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import { computeSegments } from '../graph/segments';
 import { midiToPitchClass } from '../constants/noteColors';
-import type { SegmentMode, Tile } from '../graph/types';
+import type { Tile } from '../graph/types';
 
 export function DetailPanel() {
   const { tokens } = useTheme();
@@ -11,19 +11,14 @@ export function DetailPanel() {
   const start = useAppStore(s => s.startTileId);
   const tiles = useAppStore(s => s.tiles);
   const byCell = useAppStore(s => s.byCell);
-  const settings = useAppStore(s => s.segmentSettings);
-  const setMode = useAppStore(s => s.setSegmentMode);
-  const setHold = useAppStore(s => s.setSegmentHold);
+  const paints = useAppStore(s => s.paints);
   const toggleBass = useAppStore(s => s.toggleBass);
+  const removeFromPaints = useAppStore(s => s.removeTileFromAllPaints);
   const selectedTile = useAppStore(s => (s.selectedTileId ? s.tiles[s.selectedTileId] : null));
   if (!selected || !start) return null;
 
   const segs = computeSegments(start, tiles, byCell);
   const seg = segs.find(s => s.tiles.includes(selected));
-  if (!seg) return null;
-
-  const cur = settings[seg.rootId] ?? { segmentRootId: seg.rootId, mode: 'sequential' as const, holdBeats: 1 as const };
-  const modes: SegmentMode[] = ['sequential', 'solid', 'arp'];
 
   const optionBase: CSSProperties = {
     minHeight: 32,
@@ -36,6 +31,9 @@ export function DetailPanel() {
     color: '#fff',
     border: `1px solid ${tokens.tilePlayhead}`,
   };
+
+  // Paints this tile belongs to (for the "Remove from paint" affordance).
+  const tilePaints = Object.values(paints).filter(p => p.tileIds.includes(selected));
 
   return (
     <div
@@ -54,53 +52,39 @@ export function DetailPanel() {
       >
         ×
       </button>
-      <div className="detail-scope text-xs opacity-60 mb-3 pr-8">
-        {(() => {
-          const noteIds = seg.tiles.filter(id => tiles[id]?.kind === 'note');
-          const labels = noteIds.slice(0, 4).map(id => {
-            const t = tiles[id] as Tile;
-            return t.kind === 'note' ? midiToPitchClass(t.pitch) : '';
-          });
-          const more = noteIds.length > 4 ? ` (+${noteIds.length - 4})` : '';
-          return `Segment: ${labels.join(' → ')}${more}`;
-        })()}
-      </div>
-      <div className="detail-row mb-3 pr-8">
-        <div className="detail-label text-sm opacity-60 mb-1">Mode</div>
-        <div className="detail-mode-buttons flex gap-2">
-          {modes.map(m => (
-            <button
-              key={m}
-              type="button"
-              className="mode-btn px-3 py-1 rounded-full text-sm font-medium"
-              style={{ ...optionBase, ...(cur.mode === m ? optionSelected : {}) }}
-              onClick={() => setMode(seg.rootId, m)}
-            >
-              {m}
-            </button>
-          ))}
+      {seg && (
+        <div className="detail-scope text-xs opacity-60 mb-3 pr-8">
+          {(() => {
+            const noteIds = seg.tiles.filter(id => tiles[id]?.kind === 'note');
+            const labels = noteIds.slice(0, 4).map(id => {
+              const t = tiles[id] as Tile;
+              return t.kind === 'note' ? midiToPitchClass(t.pitch) : '';
+            });
+            const more = noteIds.length > 4 ? ` (+${noteIds.length - 4})` : '';
+            return `Segment: ${labels.join(' → ')}${more}`;
+          })()}
         </div>
-      </div>
-      {(cur.mode === 'solid' || cur.mode === 'arp') && (
-        <div className="detail-row">
-          <div className="detail-label text-sm opacity-60 mb-1">Hold (beats)</div>
-          <div className="detail-hold-buttons flex gap-2">
-            {[1, 2, 3, 4].map(h => (
-              <button
-                key={h}
-                type="button"
-                className="hold-btn px-3 py-1 rounded-full text-sm font-medium"
-                style={{ ...optionBase, ...(cur.holdBeats === h ? optionSelected : {}) }}
-                onClick={() => setHold(seg.rootId, h as 1|2|3|4)}
+      )}
+
+      {tilePaints.length > 0 && (
+        <div className="detail-row mb-3 pr-8">
+          <div className="detail-label text-sm opacity-60 mb-1">In paints</div>
+          <div className="detail-paint-list flex flex-wrap gap-2">
+            {tilePaints.map(p => (
+              <span
+                key={p.id}
+                className="paint-chip text-xs px-2 py-1 rounded-full"
+                style={{ ...optionBase, ...optionSelected }}
               >
-                {h}
-              </button>
+                {p.kind === 'chord' ? '♬ chord' : '∿ arp'} ({p.tileIds.length})
+              </span>
             ))}
           </div>
         </div>
       )}
+
       {selected && selectedTile?.kind === 'note' && (
-        <div className="detail-row mt-3">
+        <div className="detail-row flex flex-wrap gap-2 mt-3">
           <button
             type="button"
             className="bass-toggle px-3 py-1 rounded-full text-sm font-medium"
@@ -112,6 +96,16 @@ export function DetailPanel() {
           >
             {selectedTile.bass ? '↓ Bass on' : 'Flip to bass'}
           </button>
+          {tilePaints.length > 0 && (
+            <button
+              type="button"
+              className="paint-remove px-3 py-1 rounded-full text-sm font-medium"
+              style={optionBase}
+              onClick={() => removeFromPaints(selected)}
+            >
+              Remove from paints
+            </button>
+          )}
         </div>
       )}
     </div>
