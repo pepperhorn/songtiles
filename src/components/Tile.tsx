@@ -1,7 +1,40 @@
 import { useTheme } from '../theme/ThemeProvider';
 import { midiToOctave, midiToPitchClass } from '../constants/noteColors';
 import type { Tile as TileT } from '../graph/types';
-import { PETALUMA_REPEAT_OPEN, PETALUMA_REPEAT_CLOSE } from '../constants/petaluma';
+
+// Pixel-perfect repeat barline drawn as SVG so it always sits centred within
+// the tile, regardless of font metrics. viewBox is 100x100; the assembly
+// (thick bar + thin bar + two dots) is centred horizontally around x=50.
+function RepeatGlyph({ kind, size }: { kind: 'repeat-open' | 'repeat-close'; size: number }) {
+  const isOpen = kind === 'repeat-open';
+  const glyphSize = size * 0.62;
+  return (
+    <svg
+      className="repeat-glyph-svg"
+      width={glyphSize} height={glyphSize}
+      viewBox="0 0 100 100"
+      fill="currentColor"
+      style={{ display: 'block' }}
+      aria-hidden
+    >
+      {isOpen ? (
+        <>
+          <rect x="33" y="15" width="9" height="70" rx="1.5" />
+          <rect x="48" y="15" width="3" height="70" rx="1" />
+          <circle cx="62" cy="38" r="5" />
+          <circle cx="62" cy="62" r="5" />
+        </>
+      ) : (
+        <>
+          <circle cx="38" cy="38" r="5" />
+          <circle cx="38" cy="62" r="5" />
+          <rect x="49" y="15" width="3" height="70" rx="1" />
+          <rect x="58" y="15" width="9" height="70" rx="1.5" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 export function Tile({
   tile, size = 96, dimmed = false, orientation = 'h',
@@ -27,7 +60,6 @@ export function Tile({
     );
   }
   if (tile.kind === 'repeat-open' || tile.kind === 'repeat-close') {
-    const glyph = tile.kind === 'repeat-open' ? PETALUMA_REPEAT_OPEN : PETALUMA_REPEAT_CLOSE;
     const countLabel = tile.kind === 'repeat-open'
       ? (tile.count === 'inf' ? '∞' : `${tile.count}×`)
       : null;
@@ -41,28 +73,13 @@ export function Tile({
           overflow: 'hidden',
         }}
       >
-        {/* SMuFL repeat barlines sit offset within their em-box (U+E040 extends
-            right of center, U+E041 extends left). The glyph also draws taller
-            than its declared font-size, so we use a fixed flex box with a
-            smaller font and a shift to center optically inside the tile. */}
         <span
-          className="repeat-glyph-box grid place-items-center"
+          className="repeat-glyph-wrap grid place-items-center"
           style={{
-            width: size * 0.7,
-            height: size * 0.7,
             transform: orientation === 'v' ? 'rotate(90deg)' : undefined,
           }}
         >
-          <span
-            className="repeat-glyph petaluma leading-none"
-            style={{
-              fontSize: size * 0.42,
-              display: 'inline-block',
-              transform: `translateX(${tile.kind === 'repeat-open' ? '-22%' : '22%'})`,
-            }}
-          >
-            {glyph}
-          </span>
+          <RepeatGlyph kind={tile.kind} size={size} />
         </span>
         {countLabel && (
           <span
