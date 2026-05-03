@@ -118,8 +118,13 @@ export function Tray() {
   return (
     <div
       ref={trayRootRef}
-      className="tray-root fixed bottom-0 left-0 right-0 px-4 pb-4 pt-3 flex items-center gap-3 overflow-x-auto"
-      style={{ background: tokens.trayBg, touchAction: 'pan-x' }}
+      className="tray-root fixed bottom-3 left-3 right-3 px-3 pb-3 pt-3 flex items-center gap-3 overflow-x-auto rounded-2xl"
+      style={{
+        background: tokens.trayBg,
+        touchAction: 'pan-x',
+        border: '2px solid var(--chunky-edge)',
+        boxShadow: '4px 4px 0 0 var(--chunky-edge)',
+      }}
     >
       {tray.map(id => (
         <button
@@ -143,11 +148,11 @@ export function Tray() {
         />
       ))}
       <button
-        className="tray-refill ml-auto px-4 py-2 rounded-full font-medium"
-        style={{ background: tokens.topBarBg, color: tokens.textPrimary }}
+        className="tray-refill btn-chunky ml-auto px-4 py-2 rounded-lg"
+        style={{ background: tokens.topBarBg, color: tokens.textPrimary, fontWeight: 800, letterSpacing: '0.03em' }}
         onClick={refill}
       >
-        Refill
+        REFILL
       </button>
 
       {ghost && tiles[ghost.id] && (

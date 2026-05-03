@@ -600,7 +600,7 @@ export function Canvas() {
   return (
     <div
       ref={canvasRef}
-      className="canvas-root h-screen overflow-hidden relative"
+      className="canvas-root bg-paper h-screen overflow-hidden relative"
       style={{
         background: tokens.canvasBg,
         touchAction: 'none',

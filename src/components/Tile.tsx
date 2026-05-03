@@ -55,13 +55,20 @@ export function Tile({
         style={{
           width: size, height: size, borderRadius: 14,
           background: tokens.noteBg(pc), color: '#fff',
+          border: '2px solid var(--chunky-edge)',
           boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
           opacity: dimmed ? 0.4 : 1,
         }}
       >
         <span
-          className="note-name font-semibold"
-          style={{ fontSize: size * 0.42, textShadow: tokens.noteTextShadow }}
+          className="note-name"
+          style={{
+            fontSize: size * 0.46,
+            textShadow: tokens.noteTextShadow,
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            fontWeight: 800,
+            letterSpacing: '-0.04em',
+          }}
         >
           {pc}
         </span>
@@ -92,6 +99,7 @@ export function Tile({
         style={{
           width: size, height: size, borderRadius: 14,
           background: tokens.trayBg, color: tokens.textPrimary,
+          border: '2px solid var(--chunky-edge)',
           boxShadow: `${tokens.tileShadow}, ${tokens.tileBevel}`,
           overflow: 'hidden',
         }}

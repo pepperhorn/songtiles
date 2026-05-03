@@ -42,10 +42,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (!mounted) return;
 
     if (typeof document !== 'undefined') {
+      const root = document.documentElement;
       if (mode === 'dark') {
-        document.documentElement.classList.add('dark');
+        root.classList.add('dark');
+        root.classList.add('dark-mode');
       } else {
-        document.documentElement.classList.remove('dark');
+        root.classList.remove('dark');
+        root.classList.remove('dark-mode');
       }
     }
 

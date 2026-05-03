@@ -1,10 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 html, body, #root { height: 100%; }
-body { @apply font-sans antialiased; }
+body {
+  font-family: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: 'ss01', 'ss02';
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.font-mono, .tabular-nums { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace; }
 
 @font-face {
   font-family: 'Petaluma';
@@ -13,7 +20,46 @@ body { @apply font-sans antialiased; }
 }
 .petaluma { font-family: 'Petaluma', 'Bravura', serif; }
 
-/* iOS-style wiggle for tiles in long-press deletion mode. */
+/* ----- Cardboard-arcade primitives ----- */
+:root {
+  --chunky-edge: #2a2826;
+  --paper-dot: rgba(42, 40, 38, 0.07);
+  --paper-grain: rgba(255, 235, 200, 0.12);
+}
+.dark-mode {
+  --chunky-edge: #07090f;
+  --paper-dot: rgba(255, 255, 255, 0.05);
+  --paper-grain: rgba(50, 80, 130, 0.08);
+}
+
+/* Chunky offset-shadow button. The edge colour is read from --chunky-edge so
+ * theme can swap it on dark mode. Hover/active swap the offset for a tactile
+ * "press" feel. */
+.btn-chunky {
+  border: 2px solid var(--chunky-edge);
+  box-shadow: 3px 3px 0 0 var(--chunky-edge);
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out, background 120ms;
+  position: relative;
+}
+.btn-chunky:active, .btn-chunky.is-pressed {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 var(--chunky-edge);
+}
+.btn-chunky:disabled {
+  opacity: 0.55;
+  transform: none;
+  box-shadow: 3px 3px 0 0 var(--chunky-edge);
+}
+
+/* Paper-dot pattern on the canvas. Subtle but gives a sense of place. */
+.bg-paper {
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--paper-dot) 1px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+/* ----- Motion ----- */
 @keyframes songtile-wiggle {
   0%   { transform: rotate(-2.5deg); }
   50%  { transform: rotate(2.5deg);  }
@@ -24,3 +70,22 @@ body { @apply font-sans antialiased; }
   transform-origin: 50% 50%;
   will-change: transform;
 }
+
+@keyframes play-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.045); }
+}
+.play-pulse { animation: play-pulse 1s ease-in-out infinite; }
+
+@keyframes wordmark-sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50%      { transform: rotate(1.2deg);  }
+}
+.wordmark-sway { animation: wordmark-sway 6s ease-in-out infinite; }
+
+@keyframes tile-drop-in {
+  0%   { transform: translateY(-12px) scale(0.85); opacity: 0; }
+  60%  { transform: translateY(2px)   scale(1.04); opacity: 1; }
+  100% { transform: translateY(0)     scale(1);    opacity: 1; }
+}
+.tile-drop-in { animation: tile-drop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }

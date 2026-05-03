@@ -47,7 +47,7 @@ export function SoundPicker() {
   const btnStyle: CSSProperties = {
     background: tokens.topBarBg,
     color: tokens.textPrimary,
-    boxShadow: tokens.tileShadow,
+    fontWeight: 700,
   };
   const optionBase: CSSProperties = {
     border: `1px solid ${tokens.gridDot}`,
@@ -63,7 +63,7 @@ export function SoundPicker() {
   return (
     <>
       <button
-        className="sound-picker-btn px-3 py-2 rounded-lg font-medium text-sm grid place-items-center"
+        className="sound-picker-btn btn-chunky w-10 h-10 rounded-lg text-base grid place-items-center"
         style={{ ...btnStyle, pointerEvents: 'auto' }}
         onClick={() => setOpen(true)}
         aria-label="open sound picker"
