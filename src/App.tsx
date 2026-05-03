@@ -187,7 +187,13 @@ function Inner() {
         </button>
         <button
           className="play-stop px-4 py-2 rounded-full font-semibold text-sm"
-          style={{ ...btnStyle, pointerEvents: 'auto' }}
+          style={{
+            ...btnStyle,
+            pointerEvents: 'auto',
+            background: '#0a1f0d',
+            color: '#22c55e',
+            boxShadow: `${tokens.tileShadow}, inset 0 0 0 1px rgba(34, 197, 94, 0.4)`,
+          }}
           onClick={() => isPlaying ? stop() : play()}
         >
           {isPlaying ? 'Stop' : 'Play'}
