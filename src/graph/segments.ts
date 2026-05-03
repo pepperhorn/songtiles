@@ -136,15 +136,21 @@ export function computeSegments(
       } else {
         // Intersection. If the current tile is inside a positional repeat
         // section AND one of its outgoing neighbours sits along the section
-        // line, continue along the line; record the rest as branches and
-        // queue them as separate segments. Otherwise behave as before.
+        // line (either direction), continue along the line; record the rest
+        // as branches and queue them as separate segments. Otherwise behave
+        // as before.
         const dir = sectionDir.get(cur);
         const curTile = tiles[cur];
         let onLineNext: TileId | null = null;
         if (dir && curTile?.cell) {
-          const nextCell = { x: curTile.cell.x + dir.dx, y: curTile.cell.y + dir.dy };
-          const candidate = byCell[cellKey(nextCell)];
-          if (candidate && ns.includes(candidate)) onLineNext = candidate;
+          for (const sign of [1, -1]) {
+            const nextCell = { x: curTile.cell.x + sign * dir.dx, y: curTile.cell.y + sign * dir.dy };
+            const candidate = byCell[cellKey(nextCell)];
+            if (candidate && ns.includes(candidate) && !visited.has(candidate)) {
+              onLineNext = candidate;
+              break;
+            }
+          }
         }
 
         if (onLineNext) {

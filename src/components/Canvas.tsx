@@ -332,8 +332,11 @@ export function Canvas() {
             const nbrId = s.byCell[`${c.x + d.x},${c.y + d.y}`];
             if (!nbrId) continue;
             if (s.tiles[nbrId]?.kind !== 'repeat') continue;
-            const pair = pairs.find(p => p.openId === nbrId || p.closeId === nbrId);
-            if (pair) { target = pair.openId; break; }
+            // Use the adjacent repeat itself as the play target — playback
+            // walks from THIS end of the section, so tapping either end
+            // starts the loop heading away from the tapped tile.
+            const inPair = pairs.some(p => p.openId === nbrId || p.closeId === nbrId);
+            if (inPair) { target = nbrId; break; }
           }
         }
       }
