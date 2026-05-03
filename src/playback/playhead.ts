@@ -87,12 +87,11 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
       activeBass = null;
     };
 
-    type PathItem = { id: string; kind: 'note' | 'repeat-open' | 'repeat-close'; count?: 1|2|3|4|'inf' };
+    type PathItem = { id: string; kind: 'note' | 'repeat'; count?: 1|2|3|4|'inf' };
     const path: PathItem[] = seg.tiles.map(id => {
       const t = tiles[id];
       if (t.kind === 'note') return { id, kind: 'note' as const };
-      if (t.kind === 'repeat-open') return { id, kind: 'repeat-open' as const, count: t.count };
-      return { id, kind: 'repeat-close' as const };
+      return { id, kind: 'repeat' as const, count: t.count };
     });
     const spans = findRepeatSpans(path);
 

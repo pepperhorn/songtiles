@@ -305,7 +305,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   cycleRepeatCount(id) {
     const s = get();
     const t = s.tiles[id];
-    if (!t || t.kind !== 'repeat-open') return;
+    if (!t || t.kind !== 'repeat') return;
     const order: Array<1|2|3|4|'inf'> = [1,2,3,4,'inf',1];
     const next = order[order.indexOf(t.count) + 1];
     set({ tiles: { ...s.tiles, [id]: { ...t, count: next } } });

@@ -3,10 +3,12 @@ export type TileId = string;
 export type Pitch = number; // MIDI 36..84
 
 export interface TileBase { id: TileId; cell: Cell | null }  // null = in tray / deck
-export interface NoteTile  extends TileBase { kind: 'note';  pitch: Pitch; bass: boolean }
-export interface RepeatOpenTile  extends TileBase { kind: 'repeat-open';  count: 1|2|3|4|'inf' }
-export interface RepeatCloseTile extends TileBase { kind: 'repeat-close' }
-export type Tile = NoteTile | RepeatOpenTile | RepeatCloseTile;
+export interface NoteTile    extends TileBase { kind: 'note'; pitch: Pitch; bass: boolean }
+/** Single repeat-marker tile. Two repeat tiles on the same row/column with
+ *  notes between them auto-pair into a section that loops `count` times. A
+ *  lone repeat is a no-op for playback (just a placeholder). */
+export interface RepeatTile  extends TileBase { kind: 'repeat'; count: 1|2|3|4|'inf' }
+export type Tile = NoteTile | RepeatTile;
 
 export type SegmentMode = 'sequential' | 'solid' | 'arp';
 export interface SegmentSettings {

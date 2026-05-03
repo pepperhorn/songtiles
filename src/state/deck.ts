@@ -1,4 +1,4 @@
-import type { Tile, TileId, RepeatOpenTile, RepeatCloseTile } from '../graph/types';
+import type { Tile, TileId, RepeatTile } from '../graph/types';
 import { newTileId } from '../utils/id';
 
 /** Pure data — no class methods. */
@@ -25,10 +25,10 @@ function shuffle<T>(arr: T[], rng: Rng = Math.random): T[] {
 
 /**
  * Build a shuffled deck of 144 note tiles (MIDI 36..84, 3 copies each, trimmed
- * to 144) plus `repeatSets` repeat-open / repeat-close pairs mixed in.
+ * to 144) plus 2 * `repeatSets` generic repeat wildcard tiles. Two repeats on
+ * the same row/column with notes between auto-pair into a looping section.
  *
- * Total deck size = 144 + 2 * repeatSets. Wildcards occupy tray slots when
- * drawn just like notes do.
+ * Total deck size = 144 + 2 * repeatSets.
  */
 export function createDeck(repeatSets = 0, rng?: Rng): DeckRecord {
   const tiles: Record<TileId, Tile> = {};
@@ -44,15 +44,12 @@ export function createDeck(repeatSets = 0, rng?: Rng): DeckRecord {
     ids.push(id);
   }
 
-  // Repeat wildcards (1 open + 1 close per set), shuffled in alongside the notes.
-  for (let i = 0; i < repeatSets; i++) {
-    const openId = newTileId();
-    const closeId = newTileId();
-    const open: RepeatOpenTile = { id: openId, kind: 'repeat-open', count: 1, cell: null };
-    const close: RepeatCloseTile = { id: closeId, kind: 'repeat-close', cell: null };
-    tiles[openId] = open;
-    tiles[closeId] = close;
-    ids.push(openId, closeId);
+  // Repeat wildcards — generic, auto-pair on the strand by position.
+  for (let i = 0; i < repeatSets * 2; i++) {
+    const id = newTileId();
+    const repeat: RepeatTile = { id, kind: 'repeat', count: 1, cell: null };
+    tiles[id] = repeat;
+    ids.push(id);
   }
 
   shuffle(ids, rng);

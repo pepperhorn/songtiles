@@ -2,11 +2,11 @@ import { useTheme } from '../theme/ThemeProvider';
 import { midiToOctave, midiToPitchClass } from '../constants/noteColors';
 import type { Tile as TileT } from '../graph/types';
 
-// Pixel-perfect repeat barline drawn as SVG so it always sits centred within
-// the tile, regardless of font metrics. viewBox is 100x100; the assembly
-// (thick bar + thin bar + two dots) is centred horizontally around x=50.
-function RepeatGlyph({ kind, size }: { kind: 'repeat-open' | 'repeat-close'; size: number }) {
-  const isOpen = kind === 'repeat-open';
+// Pixel-perfect repeat barline drawn as SVG. `side` defaults to 'open' for
+// tiles in the tray and any unpaired tile on the canvas; the canvas flips
+// the trailing partner of a paired section to 'close' so the dots face back
+// into the loop.
+function RepeatGlyph({ side, size }: { side: 'open' | 'close'; size: number }) {
   const glyphSize = size * 0.62;
   return (
     <svg
@@ -17,7 +17,7 @@ function RepeatGlyph({ kind, size }: { kind: 'repeat-open' | 'repeat-close'; siz
       style={{ display: 'block' }}
       aria-hidden
     >
-      {isOpen ? (
+      {side === 'open' ? (
         <>
           <rect x="33" y="15" width="9" height="70" rx="1.5" />
           <rect x="48" y="15" width="3" height="70" rx="1" />
@@ -37,8 +37,14 @@ function RepeatGlyph({ kind, size }: { kind: 'repeat-open' | 'repeat-close'; siz
 }
 
 export function Tile({
-  tile, size = 96, dimmed = false, orientation = 'h',
-}: { tile: TileT; size?: number; dimmed?: boolean; orientation?: 'h' | 'v' }) {
+  tile, size = 96, dimmed = false, orientation = 'h', repeatSide = 'open',
+}: {
+  tile: TileT;
+  size?: number;
+  dimmed?: boolean;
+  orientation?: 'h' | 'v';
+  repeatSide?: 'open' | 'close';
+}) {
   const { tokens } = useTheme();
   if (tile.kind === 'note') {
     const pc = midiToPitchClass(tile.pitch);
@@ -59,10 +65,10 @@ export function Tile({
       </div>
     );
   }
-  if (tile.kind === 'repeat-open' || tile.kind === 'repeat-close') {
-    const countLabel = tile.kind === 'repeat-open'
-      ? (tile.count === 'inf' ? '∞' : `${tile.count}×`)
-      : null;
+  if (tile.kind === 'repeat') {
+    // Show the count on every repeat so the user can dial it in before pairing.
+    // Once paired, the OPEN-side count is the one that drives playback.
+    const countLabel = tile.count === 'inf' ? '∞' : `${tile.count}×`;
     return (
       <div
         className="songtile repeat-tile relative grid place-items-center select-none"
@@ -79,16 +85,14 @@ export function Tile({
             transform: orientation === 'v' ? 'rotate(90deg)' : undefined,
           }}
         >
-          <RepeatGlyph kind={tile.kind} size={size} />
+          <RepeatGlyph side={repeatSide} size={size} />
         </span>
-        {countLabel && (
-          <span
-            className="repeat-count absolute bottom-1.5 right-2 text-xs font-medium"
-            style={{ color: tokens.textPrimary }}
-          >
-            {countLabel}
-          </span>
-        )}
+        <span
+          className="repeat-count absolute bottom-1.5 right-2 text-xs font-medium"
+          style={{ color: tokens.textPrimary }}
+        >
+          {countLabel}
+        </span>
       </div>
     );
   }

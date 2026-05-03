@@ -18,13 +18,11 @@ describe('deck', () => {
     }
   });
 
-  it('createDeck(5) shuffles 5 repeat-open + 5 repeat-close tiles into the deck', () => {
+  it('createDeck(5) shuffles 10 generic repeat tiles into the deck', () => {
     const r = createDeck(5);
     expect(r.deck).toHaveLength(154);                                  // 144 notes + 10 repeats
-    const opens  = Object.values(r.tiles).filter(t => t.kind === 'repeat-open');
-    const closes = Object.values(r.tiles).filter(t => t.kind === 'repeat-close');
-    expect(opens).toHaveLength(5);
-    expect(closes).toHaveLength(5);
+    const repeats = Object.values(r.tiles).filter(t => t.kind === 'repeat');
+    expect(repeats).toHaveLength(10);
   });
 
   it('drawTo(record, 6) fills tray to 6 from the top of the deck', () => {

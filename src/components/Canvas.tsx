@@ -44,14 +44,22 @@ export function Canvas() {
   })();
   const paintingSet = new Set(paintingTileIds);
 
-  // Repeat sections (visual): pair open/close positionally — same row/col
-  // with no gaps. Uses the shared helper so playback honours the same pairs.
+  // Repeat sections (visual): pair repeats positionally — same row/col with
+  // no gaps. Uses the shared helper so playback honours the same pairs.
+  const positionalPairs = findPositionalRepeatPairs(tiles, byCell);
   const repeatSectionTiles = (() => {
     const out = new Set<TileId>();
-    for (const p of findPositionalRepeatPairs(tiles, byCell)) {
-      for (const id of p.lineIds) out.add(id);
-    }
+    for (const p of positionalPairs) for (const id of p.lineIds) out.add(id);
     return out;
+  })();
+  // Per-repeat-tile side ('open' | 'close' | 'lone') for the SVG.
+  const repeatSideById = (() => {
+    const map = new Map<TileId, 'open' | 'close'>();
+    for (const p of positionalPairs) {
+      map.set(p.openId, 'open');
+      map.set(p.closeId, 'close');
+    }
+    return map;
   })();
 
   // Per-tile orientation for repeat glyphs: vertical if the tile's only
@@ -280,7 +288,7 @@ export function Canvas() {
     if (last && last.id === id && now - last.t < DOUBLE_TAP_MS) {
       lastTapRef.current = null;
       if (t.kind === 'note') s.toggleBass(id);
-      else if (t.kind === 'repeat-open') s.cycleRepeatCount(id);
+      else if (t.kind === 'repeat') s.cycleRepeatCount(id);
       return;
     }
     lastTapRef.current = { id, t: now };
@@ -288,8 +296,8 @@ export function Canvas() {
     // Single-tap actions: preview pitch, select, halo if endpoint.
     if (t.kind === 'note') s.previewNote(t.pitch, t.bass);
     s.selectTile(id);
-    // Single-tap on a repeat-open cycles the count (1×, 2×, 3×, 4×, ∞).
-    if (t.kind === 'repeat-open') {
+    // Single-tap on any repeat tile cycles the count (1×, 2×, 3×, 4×, ∞).
+    if (t.kind === 'repeat') {
       s.cycleRepeatCount(id);
       return;
     }
@@ -524,7 +532,8 @@ export function Canvas() {
               <Tile
                 tile={t}
                 size={CELL - 2}
-                orientation={t.kind === 'repeat-open' || t.kind === 'repeat-close' ? repeatOrientation(t.id) : 'h'}
+                orientation={t.kind === 'repeat' ? repeatOrientation(t.id) : 'h'}
+                repeatSide={t.kind === 'repeat' ? (repeatSideById.get(t.id) ?? 'open') : 'open'}
               />
             </div>
           );

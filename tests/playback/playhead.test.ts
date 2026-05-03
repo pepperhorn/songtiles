@@ -86,11 +86,11 @@ describe('advancePlayhead — repeat tiles with branch on final pass', () => {
     //   pass 2: a, b, c   (branch fires once, at the beat after b in pass 2)
     //   x fires once total at beat (a + b in pass 2 + 1) = beat 5.
     const tiles: Record<TileId, Tile> = {
-      o: { id: 'o', cell: { x: 0, y: 0 }, kind: 'repeat-open', count: 2 } as Tile,
+      o: { id: 'o', cell: { x: 0, y: 0 }, kind: 'repeat', count: 2 } as Tile,
       a: n('a', 1, 0, 60),
       b: n('b', 2, 0, 62),
       c: n('c', 3, 0, 64),
-      cl: { id: 'cl', cell: { x: 4, y: 0 }, kind: 'repeat-close' } as Tile,
+      cl: { id: 'cl', cell: { x: 4, y: 0 }, kind: 'repeat', count: 1 } as Tile,
       x: n('x', 2, 1, 67),                 // branch off b downward
     };
     const byCell: Record<string, TileId> = {
@@ -124,9 +124,9 @@ describe('advancePlayhead — repeat tiles', () => {
   it('finite repeat replays the section count times (open/close consume 0 beats)', () => {
     const tiles: Record<TileId, Tile> = {
       a: n('a', 0, 0, 60),
-      o: { id: 'o', cell: { x: 1, y: 0 }, kind: 'repeat-open', count: 3 } as Tile,
+      o: { id: 'o', cell: { x: 1, y: 0 }, kind: 'repeat', count: 3 } as Tile,
       b: n('b', 2, 0, 62),
-      c: { id: 'c', cell: { x: 3, y: 0 }, kind: 'repeat-close' } as Tile,
+      c: { id: 'c', cell: { x: 3, y: 0 }, kind: 'repeat', count: 1 } as Tile,
       d: n('d', 4, 0, 64),
     };
     const byCell: Record<string, TileId> = { '0,0': 'a', '1,0': 'o', '2,0': 'b', '3,0': 'c', '4,0': 'd' };
