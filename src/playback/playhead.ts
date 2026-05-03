@@ -1,7 +1,6 @@
 import type { Segment } from '../graph/segments';
 import type { Tile, TileId, Paint, PaintId } from '../graph/types';
 import type { ScheduleEmit } from './events';
-import { findRepeatSpans } from '../graph/repeats';
 
 interface Args {
   segments: Segment[];
@@ -93,7 +92,6 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
       if (t.kind === 'note') return { id, kind: 'note' as const };
       return { id, kind: 'repeat' as const, count: t.count };
     });
-    const spans = findRepeatSpans(path);
 
     // Fire one tile at the given beat offset. Returns the number of beats this
     // tile consumes (1 for a normal note, 1 for the lead tile of a chord/arp
@@ -184,39 +182,57 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
       }
     };
 
-    const fireRange = (
-      from: number, to: number, beatStart: number,
-      allowBranches: boolean,
+    // Walk a contiguous chunk [from, to) firing each tile at incrementing
+    // beats. Mid-section branches off intersection tiles only fork when
+    // `allowBranches` is true (used to defer branching until a repeat's
+    // count is satisfied).
+    const fireChunk = (
+      from: number, to: number, beatStart: number, allowBranches: boolean,
     ): { beatsAdded: number; aborted: boolean } => {
       let localB = beatStart;
-      let i = from;
-      while (i < to) {
-        const span = spans.find(s => s.openIndex === i && s.closeIndex < to);
-        if (span) {
-          const reps = span.count === 'inf' ? 1 : span.count;
-          for (let r = 0; r < reps; r++) {
-            const isLast = r === reps - 1;
-            const inner = fireRange(span.openIndex + 1, span.closeIndex, localB, isLast);
-            if (inner.aborted) return { beatsAdded: localB - beatStart + inner.beatsAdded, aborted: true };
-            localB += inner.beatsAdded;
-          }
-          i = span.closeIndex + 1;
-          continue;
-        }
+      for (let i = from; i < to; i++) {
         const tileBeat = localB;
         const res = fireIndex(i, localB);
         if (res.aborted) { closeBass(beat + localB); return { beatsAdded: localB - beatStart, aborted: true }; }
-        // Fork mid-section branches off this tile only on the final loop pass.
         if (allowBranches && res.beats > 0) {
           queueBranches(path[i].id, beat + tileBeat + res.beats);
         }
         localB += res.beats;
-        i++;
       }
       return { beatsAdded: localB - beatStart, aborted: false };
     };
 
-    const result = fireRange(0, path.length, 0, true);
+    // Convert the path into an ordered list of blocks: each block is either
+    // a looping section (notes followed by a repeat marker) or a tail of
+    // straight notes after the last repeat. Branches inside a looping block
+    // only fire on the final pass — the repeat's count must be satisfied
+    // before the playhead is allowed to fork.
+    let totalBeats = 0;
+    let aborted = false;
+    let blockStart = 0;
+    for (let i = 0; i <= path.length; i++) {
+      const isRepeat = i < path.length && path[i].kind === 'repeat';
+      const isEnd = i === path.length;
+      if (!isRepeat && !isEnd) continue;
+
+      if (isRepeat) {
+        const reps = path[i].count === 'inf' ? 1 : (path[i].count as number);
+        for (let r = 0; r < reps; r++) {
+          const isLast = r === reps - 1;
+          const inner = fireChunk(blockStart, i, totalBeats, isLast);
+          totalBeats += inner.beatsAdded;
+          if (inner.aborted) { aborted = true; break; }
+        }
+        if (aborted) break;
+        blockStart = i + 1;
+      } else {
+        // Tail (no terminating repeat) — play once.
+        const inner = fireChunk(blockStart, i, totalBeats, true);
+        totalBeats += inner.beatsAdded;
+        if (inner.aborted) { aborted = true; }
+      }
+    }
+    const result = { beatsAdded: totalBeats, aborted };
     if (!result.aborted) {
       b = result.beatsAdded;
       closeBass(beat + b);

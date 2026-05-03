@@ -20,65 +20,61 @@ export interface Segment {
 }
 
 /**
- * Find positional repeat pairs. A pair is two repeat tiles on the same row
- * or column with no gaps between them. The first/leading tile (smaller x or
- * y) becomes the section "open" and supplies the count.
+ * Find repeat sections. A section is anchored by a single repeat tile that
+ * sits at the end of a strand (exactly one non-repeat neighbour). Walking
+ * away from the repeat in that direction collects every consecutive note
+ * tile until a non-note tile or empty cell terminates the line.
  *
- * Returns one entry per pair with the inclusive list of tile ids on the
- * section line plus the direction step used to walk it.
+ * Returns one entry per repeat. `lineIds` lists tiles in playhead order:
+ * the far end first, the repeat tile last.
  */
-export interface PositionalPair {
-  openId: TileId;       // leading (smaller x/y) repeat tile
-  closeId: TileId;      // trailing repeat tile
-  lineIds: TileId[];    // inclusive open..close
+export interface RepeatSection {
+  repeatId: TileId;
+  lineIds: TileId[];
+  /** Step from far end → repeat. */
   step: { dx: number; dy: number };
 }
 
-export function findPositionalRepeatPairs(
+export function findRepeatSections(
   tiles: Record<TileId, Tile>,
   byCell: Record<string, TileId>,
-): PositionalPair[] {
-  const repeats = Object.values(tiles).filter(t => t.kind === 'repeat' && t.cell);
-  const used = new Set<TileId>();
-  const out: PositionalPair[] = [];
-
-  // For each pair (a, b) we consider, prefer the closest neighbour on the
-  // same line. Sort all candidate pairs by distance to greedily pair.
-  type Candidate = { a: typeof repeats[number]; b: typeof repeats[number]; dist: number; lineIds: TileId[]; step: { dx: number; dy: number } };
-  const candidates: Candidate[] = [];
-  for (let i = 0; i < repeats.length; i++) {
-    for (let j = i + 1; j < repeats.length; j++) {
-      const ra = repeats[i], rb = repeats[j];
-      const ac = ra.cell!, bc = rb.cell!;
-      const dx = bc.x - ac.x, dy = bc.y - ac.y;
-      if ((dx !== 0 && dy !== 0) || (dx === 0 && dy === 0)) continue;
-      const steps = Math.abs(dx + dy);
-      const sx = Math.sign(dx), sy = Math.sign(dy);
-      const lineIds: TileId[] = [];
-      let ok = true;
-      for (let k = 0; k <= steps; k++) {
-        const id = byCell[cellKey({ x: ac.x + sx * k, y: ac.y + sy * k })];
-        if (!id) { ok = false; break; }
-        lineIds.push(id);
+): RepeatSection[] {
+  const out: RepeatSection[] = [];
+  const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+  for (const r of Object.values(tiles)) {
+    if (r.kind !== 'repeat' || !r.cell) continue;
+    const c = r.cell;
+    // Find the single non-repeat neighbour. If 0 or 2+, skip — the repeat
+    // is either floating or sitting at an intersection.
+    let outDir: { dx: number; dy: number } | null = null;
+    let count = 0;
+    for (const d of dirs) {
+      const nbr = byCell[cellKey({ x: c.x + d.x, y: c.y + d.y })];
+      if (nbr && tiles[nbr]?.kind !== 'repeat') {
+        count++;
+        outDir = { dx: -d.x, dy: -d.y }; // step from far end → repeat
       }
-      if (!ok) continue;
-      candidates.push({ a: ra, b: rb, dist: steps, lineIds, step: { dx: sx, dy: sy } });
     }
-  }
-  candidates.sort((p, q) => p.dist - q.dist);
-
-  for (const c of candidates) {
-    if (used.has(c.a.id) || used.has(c.b.id)) continue;
-    // Always order leading→trailing so step is positive.
-    const leading = (c.step.dx + c.step.dy) > 0 ? c.a : c.b;
-    const trailing = leading === c.a ? c.b : c.a;
-    used.add(leading.id);
-    used.add(trailing.id);
+    if (count !== 1 || !outDir) continue;
+    // Walk from the repeat in the OPPOSITE of outDir until end or non-note.
+    const reverse = { dx: -outDir.dx, dy: -outDir.dy };
+    const reversed: TileId[] = [];
+    let x = c.x, y = c.y;
+    while (true) {
+      x += reverse.dx;
+      y += reverse.dy;
+      const id = byCell[cellKey({ x, y })];
+      if (!id) break;
+      const t = tiles[id];
+      if (!t || t.kind !== 'note') break;
+      reversed.push(id);
+    }
+    if (reversed.length === 0) continue;
+    // lineIds: far end first → repeat last (playhead order if entering from far end).
     out.push({
-      openId: leading.id,
-      closeId: trailing.id,
-      lineIds: c.lineIds,
-      step: c.step,
+      repeatId: r.id,
+      lineIds: [...reversed.reverse(), r.id],
+      step: outDir,
     });
   }
   return out;
@@ -91,15 +87,14 @@ export function computeSegments(
 ): Segment[] {
   const segments: Segment[] = [];
 
-  // Index every tile that lies INSIDE a positional repeat section by its
-  // section's line direction. Mid-line intersections of these tiles will
-  // continue the segment along that direction instead of splitting.
-  const pairs = findPositionalRepeatPairs(tiles, byCell);
-  // tileId → { dx, dy } (line step), only for tiles that are interior to a
-  // pair (between open and close inclusive).
+  // Index every tile that lies INSIDE a repeat section by the section's
+  // line direction. Mid-line intersections of these tiles will continue the
+  // segment along that direction instead of splitting, so the entire line
+  // (including the repeat marker) ends up in one segment for stack pairing.
+  const sections = findRepeatSections(tiles, byCell);
   const sectionDir = new Map<TileId, { dx: number; dy: number }>();
-  for (const p of pairs) {
-    for (const id of p.lineIds) sectionDir.set(id, p.step);
+  for (const s of sections) {
+    for (const id of s.lineIds) sectionDir.set(id, s.step);
   }
 
   interface FrontierEntry { root: TileId; prev: TileId | null }

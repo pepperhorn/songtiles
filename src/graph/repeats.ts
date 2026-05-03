@@ -1,25 +1,36 @@
 type PathItem = { id: string; kind: 'note' | 'repeat'; count?: 1|2|3|4|'inf' };
-export interface RepeatSpan { openIndex: number; closeIndex: number; count: 1|2|3|4|'inf' }
 
 /**
- * Find repeat spans in a segment path. Repeats are now generic markers that
- * pair up positionally along the path: the first repeat starts a section,
- * the next repeat closes it. Subsequent repeats start a fresh pair (so two
- * repeats then two more repeats yields two adjacent sections, not nested).
- *
- * The section's loop count is taken from the OPEN-side repeat tile's count.
+ * A repeat span describes a contiguous block of tiles that should replay
+ * before any branching. `innerStart..innerEnd` is the (exclusive end) range
+ * of tiles to play each pass; `repeatIndex` is the position of the repeat
+ * marker that triggered the loop (consumes 0 beats).
+ */
+export interface RepeatSpan {
+  innerStart: number;
+  innerEnd: number;
+  repeatIndex: number;
+  count: 1|2|3|4|'inf';
+}
+
+/**
+ * Find repeat spans in a segment path. Each `repeat` tile in the path
+ * triggers a loop over every preceding tile back to the start of the
+ * segment (or the previous repeat). The repeat tile itself is a 0-beat
+ * marker — it doesn't add a beat, but its count is honoured.
  */
 export function findRepeatSpans(path: PathItem[]): RepeatSpan[] {
   const out: RepeatSpan[] = [];
-  let openIdx: number | null = null;
+  let last = 0;
   for (let i = 0; i < path.length; i++) {
     if (path[i].kind !== 'repeat') continue;
-    if (openIdx === null) {
-      openIdx = i;
-    } else {
-      out.push({ openIndex: openIdx, closeIndex: i, count: (path[openIdx].count ?? 1) });
-      openIdx = null;
-    }
+    out.push({
+      innerStart: last,
+      innerEnd: i,
+      repeatIndex: i,
+      count: path[i].count ?? 1,
+    });
+    last = i + 1;
   }
   return out;
 }

@@ -2,36 +2,35 @@ import { describe, it, expect } from 'vitest';
 import { findRepeatSpans } from '../../src/graph/repeats';
 
 describe('findRepeatSpans', () => {
-  it('returns empty for a lone repeat (no partner)', () => {
-    expect(findRepeatSpans([{ id: 'o', kind: 'repeat', count: 2 }])).toEqual([]);
+  it('returns empty when there is no repeat marker', () => {
+    expect(findRepeatSpans([
+      { id: 'a', kind: 'note' },
+      { id: 'b', kind: 'note' },
+    ])).toEqual([]);
   });
-  it('matches the first two repeats as an open/close pair (count from open)', () => {
+
+  it('a single repeat triggers a loop over every preceding tile', () => {
     const spans = findRepeatSpans([
-      { id: 'n1', kind: 'note' },
-      { id: 'r1', kind: 'repeat', count: 3 },
-      { id: 'n2', kind: 'note' },
-      { id: 'r2', kind: 'repeat', count: 1 },
-      { id: 'n3', kind: 'note' },
-    ]);
-    expect(spans).toEqual([{ openIndex: 1, closeIndex: 3, count: 3 }]);
-  });
-  it('four repeats yield two adjacent (non-nested) pairs', () => {
-    const spans = findRepeatSpans([
-      { id: 'a', kind: 'repeat', count: 2 },
-      { id: 'b', kind: 'repeat', count: 1 },
-      { id: 'c', kind: 'repeat', count: 4 },
-      { id: 'd', kind: 'repeat', count: 1 },
+      { id: 'a',  kind: 'note' },
+      { id: 'b',  kind: 'note' },
+      { id: 'r',  kind: 'repeat', count: 3 },
     ]);
     expect(spans).toEqual([
-      { openIndex: 0, closeIndex: 1, count: 2 },
-      { openIndex: 2, closeIndex: 3, count: 4 },
+      { innerStart: 0, innerEnd: 2, repeatIndex: 2, count: 3 },
     ]);
   });
-  it('skips a final unmatched repeat silently', () => {
+
+  it('two repeats produce two adjacent spans (each replays the run since the previous repeat)', () => {
     const spans = findRepeatSpans([
+      { id: 'a',  kind: 'note' },
       { id: 'r1', kind: 'repeat', count: 2 },
-      { id: 'n1', kind: 'note' },
+      { id: 'b',  kind: 'note' },
+      { id: 'c',  kind: 'note' },
+      { id: 'r2', kind: 'repeat', count: 4 },
     ]);
-    expect(spans).toEqual([]);
+    expect(spans).toEqual([
+      { innerStart: 0, innerEnd: 1, repeatIndex: 1, count: 2 },
+      { innerStart: 2, innerEnd: 4, repeatIndex: 4, count: 4 },
+    ]);
   });
 });

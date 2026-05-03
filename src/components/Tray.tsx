@@ -118,12 +118,16 @@ export function Tray() {
   return (
     <div
       ref={trayRootRef}
-      className="tray-root fixed bottom-3 left-3 right-3 px-3 pb-3 pt-3 flex items-center gap-3 overflow-x-auto rounded-2xl"
+      className="tray-root fixed bottom-3 left-3 right-3 px-3 flex items-center gap-3 overflow-x-auto rounded-2xl tray-scroll"
       style={{
         background: tokens.trayBg,
         touchAction: 'pan-x',
         border: '2px solid var(--chunky-edge)',
         boxShadow: '4px 4px 0 0 var(--chunky-edge)',
+        // 8px base + 5px extra top/bottom = 13px each. Wider hit area for
+        // scroll gestures so they don't get hijacked by tile drags.
+        paddingTop: 13,
+        paddingBottom: 13,
       }}
     >
       {tray.map(id => (

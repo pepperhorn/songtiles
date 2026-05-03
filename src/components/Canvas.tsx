@@ -5,7 +5,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { Tile } from './Tile';
 import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
-import { findPositionalRepeatPairs } from '../graph/segments';
+import { findRepeatSections } from '../graph/segments';
 import type { TileId } from '../graph/types';
 
 const CELL = 96;
@@ -57,47 +57,27 @@ export function Canvas() {
     else if (a) arpOnlySet.add(tid);
   }
 
-  // Repeat sections (visual): pair repeats positionally — same row/col with
-  // no gaps. Uses the shared helper so playback honours the same pairs.
-  const positionalPairs = findPositionalRepeatPairs(tiles, byCell);
+  // Repeat sections — one section per Repeat tile that's at the end of a
+  // strand. The line of tiles (notes + the repeat marker itself) gets the
+  // yellow group shadow.
+  const repeatSections = findRepeatSections(tiles, byCell);
   const repeatSectionTiles = (() => {
     const out = new Set<TileId>();
-    for (const p of positionalPairs) for (const id of p.lineIds) out.add(id);
+    for (const s of repeatSections) for (const id of s.lineIds) out.add(id);
     return out;
   })();
-  // Per-repeat-tile side ('open' | 'close') for the SVG. Paired tiles use
-  // their pair role. Unpaired tiles snap so their dots face the adjacent
-  // strand neighbour (right/down → 'open'; left/up → 'close').
-  const repeatSideById = (() => {
-    const map = new Map<TileId, 'open' | 'close'>();
-    for (const p of positionalPairs) {
-      map.set(p.openId, 'open');
-      map.set(p.closeId, 'close');
-    }
-    for (const t of Object.values(tiles)) {
-      if (t.kind !== 'repeat' || !t.cell || map.has(t.id)) continue;
-      const c = t.cell;
-      const has = (dx: number, dy: number) => !!byCell[`${c.x + dx},${c.y + dy}`];
-      // Prefer the strand direction the tile sits on (one neighbour expected).
-      if (has(1, 0))      map.set(t.id, 'open');   // neighbour to the right
-      else if (has(0, 1)) map.set(t.id, 'open');   // neighbour below (with v rot, dots face down)
-      else if (has(-1, 0)) map.set(t.id, 'close'); // neighbour to the left
-      else if (has(0, -1)) map.set(t.id, 'close'); // neighbour above (with v rot, dots face up)
-    }
-    return map;
-  })();
-
-  // Per-tile orientation for repeat glyphs: vertical if the tile's only
-  // neighbour is above or below (vertical strand), horizontal otherwise.
-  const repeatOrientation = (id: TileId): 'h' | 'v' => {
-    const t = tiles[id];
-    if (!t?.cell) return 'h';
-    const c = t.cell;
-    const has = (dx: number, dy: number) => !!byCell[`${c.x + dx},${c.y + dy}`];
-    const horiz = has(1, 0) || has(-1, 0);
-    const vert = has(0, 1) || has(0, -1);
-    return !horiz && vert ? 'v' : 'h';
-  };
+  // Map each repeat-tile to the section it anchors — used for tap-to-play
+  // when a note adjacent to a repeat is tapped.
+  const sectionByRepeat = new Map<TileId, typeof repeatSections[number]>();
+  for (const s of repeatSections) sectionByRepeat.set(s.repeatId, s);
+  // Map each repeat-tile to its first section-line note (the playhead's
+  // entry point). Used as the play target when the user taps an adjacent
+  // note: starting from the far end means the strand plays through to the
+  // repeat and loops correctly.
+  const sectionStartByRepeat = new Map<TileId, TileId>();
+  for (const s of repeatSections) {
+    if (s.lineIds.length >= 2) sectionStartByRepeat.set(s.repeatId, s.lineIds[0]);
+  }
 
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -318,10 +298,10 @@ export function Canvas() {
     }
     // Tapping a note tile fires play if either:
     //   (a) it's a strand endpoint (1 neighbour); or
-    //   (b) it's adjacent to a repeat tile that's part of a positional pair —
-    //       i.e. it sits at one end of a looping section. In that case the
-    //       play target becomes the section's OPEN repeat so the loop pairs
-    //       correctly inside a single segment.
+    //   (b) it's adjacent to a Repeat tile — i.e. it's the note that
+    //       triggers the loop. The play target becomes that note (the
+    //       furthest-from-repeat end of the section) so the playhead walks
+    //       through the section, hits the repeat, loops, exits.
     if (t.kind === 'note') {
       let target: string | null = null;
       if (isEndpoint(id, s.tiles, s.byCell)) {
@@ -330,16 +310,16 @@ export function Canvas() {
         const c = t.cell;
         if (c) {
           const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
-          const pairs = findPositionalRepeatPairs(s.tiles, s.byCell);
+          const sections = findRepeatSections(s.tiles, s.byCell);
           for (const d of dirs) {
             const nbrId = s.byCell[`${c.x + d.x},${c.y + d.y}`];
             if (!nbrId) continue;
             if (s.tiles[nbrId]?.kind !== 'repeat') continue;
-            // Use the adjacent repeat itself as the play target — playback
-            // walks from THIS end of the section, so tapping either end
-            // starts the loop heading away from the tapped tile.
-            const inPair = pairs.some(p => p.openId === nbrId || p.closeId === nbrId);
-            if (inPair) { target = nbrId; break; }
+            const section = sections.find(sec => sec.repeatId === nbrId);
+            if (section && section.lineIds.length >= 2) {
+              target = section.lineIds[0];     // far end of the section
+              break;
+            }
           }
         }
       }
@@ -490,14 +470,13 @@ export function Canvas() {
           const isStart = t.id === startTileId;
           const isStartEligible = t.kind === 'note' && (
             isEndpoint(t.id, tiles, byCell) ||
-            // Section-end notes: adjacent to a repeat that's part of a paired
-            // section, even if the note has 2 neighbours overall.
+            // Section-anchor notes: adjacent to a Repeat tile (the strand
+            // end that triggers the loop), even if the note has 2 neighbours.
             (t.cell != null && [
               [1, 0], [-1, 0], [0, 1], [0, -1],
             ].some(([dx, dy]) => {
               const nbr = byCell[`${t.cell!.x + dx},${t.cell!.y + dy}`];
-              return !!nbr && tiles[nbr]?.kind === 'repeat' &&
-                positionalPairs.some(p => p.openId === nbr || p.closeId === nbr);
+              return !!nbr && tiles[nbr]?.kind === 'repeat' && sectionByRepeat.has(nbr);
             }))
           );
           const isWiggling = wiggle?.id === t.id;
@@ -559,8 +538,6 @@ export function Canvas() {
               <Tile
                 tile={t}
                 size={CELL - 2}
-                orientation={t.kind === 'repeat' ? repeatOrientation(t.id) : 'h'}
-                repeatSide={t.kind === 'repeat' ? (repeatSideById.get(t.id) ?? 'open') : 'open'}
                 shadow={(() => {
                   // Tint the chunky drop-shadow by group membership. A tile
                   // in a paint AND a repeat section gets two stacked colour
