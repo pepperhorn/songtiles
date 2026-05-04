@@ -38,13 +38,9 @@ export const SCALE_INTERVALS: Record<ScaleType, number[]> = {
   minor: [0, 2, 3, 5, 7, 8, 10],
 };
 
-export type PaintId = string;
-export type PaintKind = 'chord' | 'arp';
-export interface Paint {
-  id: PaintId;
-  kind: PaintKind;
-  tileIds: TileId[];   // 2+ tiles, may be disconnected on the canvas
-}
+// Re-exported from src/groups for convenience.
+export type { Group, GroupId, GroupTypeId } from '../groups/types';
+/** Toolbar tools — superset of group type ids plus non-group tools (bass, eraser). */
 export type PaintTool = 'chord' | 'arp' | 'bass' | 'eraser' | null;
 
 export const cellKey = (c: Cell) => `${c.x},${c.y}`;
