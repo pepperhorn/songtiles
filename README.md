@@ -13,6 +13,7 @@ The app supports external plugin bundles loaded by URL at boot. Plugins can regi
 - [`docs/PLUGIN_ARCHITECTURE.md`](docs/PLUGIN_ARCHITECTURE.md) — registry surfaces and what's pluggable today
 - [`docs/PLUGIN_AUTHORING.md`](docs/PLUGIN_AUTHORING.md) — how to write a plugin (worked example)
 - [`docs/PLUGIN_API_CHANGELOG.md`](docs/PLUGIN_API_CHANGELOG.md) — API version history
+- [`docs/PLUGIN_ENTITLEMENT.md`](docs/PLUGIN_ENTITLEMENT.md) — paid/proprietary plugin gating
 
 Try the demo: `npm run build:demo-plugin && npm run dev`, then visit `/?plugin=/plugins/demo.js`.
 

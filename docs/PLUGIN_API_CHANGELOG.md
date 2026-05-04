@@ -7,6 +7,16 @@ The plugin API has its own integer version tracked by `CURRENT_API_VERSION` in `
 - **Non-breaking additions** to the API (a new `register*` method, new optional fields) **do not** bump the version. Existing plugins keep working.
 - A version is "removed" when `MIN_SUPPORTED_API_VERSION` is raised above it. Old bundles get a clear "no longer supported" error.
 
+## v1 (2026-05-04) — additions
+
+Non-breaking additions (no version bump):
+
+- `PluginManifest.requiresEntitlement?: boolean` — paid-plugin self-declaration.
+- `PluginManifest.licenseInfo?: PluginLicenseInfo` — display-only license metadata.
+- `EntitlementResolver` host-side hook + `setEntitlementResolver()`.
+
+See [`PLUGIN_ENTITLEMENT.md`](PLUGIN_ENTITLEMENT.md) for the full model.
+
 ## v1 (2026-05-04) — initial release
 
 The first stable plugin API. Plugins receive a `PluginAPI` with three `register*` entry points.

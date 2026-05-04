@@ -83,6 +83,12 @@ These are the things you can rely on at `apiVersion: 1`:
 - `api.registerGameMode(mode)` — `id`, `label`, `blurb`, `defaultParams`, `buildDeck(ctx)`, and optional `SetupExtras` React component contract will not change in v1.
 - `api.registerTileKind(kind)` — `renderContent`, `containerStyle`, `containerClassName`, `onTap`, `deckWildcards` semantics will not change in v1.
 
+## Paid / proprietary plugins
+
+If your plugin is paid, set `requiresEntitlement: true` on the manifest. The host MUST refuse to load it unless an `EntitlementResolver` is configured. See [`PLUGIN_ENTITLEMENT.md`](PLUGIN_ENTITLEMENT.md) for the full model — including the worked example for a store-distributed paid plugin and what's deliberately not part of the entitlement model yet (bundle signing, offline re-validation).
+
+You can also attach `licenseInfo` to the manifest (display-only metadata: license, holder, distributor, contact URL).
+
 ## What plugins **cannot** do at v1
 
 - Intercept playback flow control (no "skip rest of segment"). Group types only contribute audio for tiles in the group.
