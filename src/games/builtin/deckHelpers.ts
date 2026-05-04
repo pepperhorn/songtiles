@@ -1,6 +1,6 @@
-import type { Tile, TileId, RepeatTile, Wildness } from '../../graph/types';
-import { WILDNESS_RATIO } from '../../graph/types';
+import type { Tile, TileId, Wildness } from '../../graph/types';
 import { newTileId } from '../../utils/id';
+import { listTileKinds } from '../../tiles/registry';
 import type { DeckRecord } from '../../state/deck';
 
 type Rng = () => number;
@@ -15,8 +15,9 @@ function shuffle<T>(arr: T[], rng: Rng = Math.random): T[] {
 
 /**
  * Lay down 12 instances of every pitch class in `pcSet` distributed across
- * midi 36..83 (4 octaves × 3 copies each), then mix in repeat-tile wildcards
- * proportional to note count by `wildness` ratio. Result is shuffled.
+ * midi 36..83 (4 octaves × 3 copies each), then mix in wildcards contributed
+ * by every registered TileKind that implements `deckWildcards`. Result is
+ * shuffled.
  */
 export function buildDeckFromPitchClasses(
   pcSet: Set<number>,
@@ -39,12 +40,14 @@ export function buildDeckFromPitchClasses(
     }
   }
 
-  const wildcardCount = Math.round(ids.length * WILDNESS_RATIO[wildness]);
-  for (let i = 0; i < wildcardCount; i++) {
-    const id = newTileId();
-    const tile: RepeatTile = { id, kind: 'repeat', count: 1, cell: null };
-    tiles[id] = tile;
+  const noteCount = ids.length;
+  const addTile = (tile: Tile) => {
+    const id = tile.id || newTileId();
+    tiles[id] = { ...tile, id };
     ids.push(id);
+  };
+  for (const kind of listTileKinds()) {
+    kind.deckWildcards?.({ noteCount, wildness, addTile });
   }
 
   shuffle(ids, rng);
