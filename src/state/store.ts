@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, Wildness, GameMode, ScaleRoot, ScaleType, PaintTool } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, Wildness, GameMode, PaintTool } from '../graph/types';
 import type { Group, GroupId, GroupTypeId } from '../groups/types';
 import { cellKey } from '../graph/types';
 import { newTileId } from '../utils/id';
@@ -41,8 +41,8 @@ export interface AppState {
   trayCapacity: TrayCapacity;
   wildness: Wildness;
   gameMode: GameMode;
-  scaleRoot: ScaleRoot;
-  scaleType: ScaleType;
+  /** Mode-specific params, shape defined by the registered GameMode. */
+  gameParams: unknown;
   bpm: number;
   patchId: string;
   isPlaying: boolean;
@@ -64,8 +64,7 @@ export interface AppState {
     trayCapacity: TrayCapacity;
     wildness: Wildness;
     gameMode: GameMode;
-    scaleRoot?: ScaleRoot;
-    scaleType?: ScaleType;
+    gameParams?: unknown;
   }): void;
   refillTray(): void;
   discardTrayTile(id: TileId): void;
@@ -105,8 +104,7 @@ const baseDefaults = {
   trayCapacity: 8 as TrayCapacity,
   wildness: 'wild' as Wildness,
   gameMode: 'explorer' as GameMode,
-  scaleRoot: 0 as ScaleRoot,
-  scaleType: 'major' as ScaleType,
+  gameParams: {} as unknown,
   bpm: 240,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
@@ -142,22 +140,16 @@ function deckSlice(s: Pick<AppState, 'tiles'|'tray'|'deck'|'discardedCount'>): D
 export const useAppStore = create<AppState>((set, get) => ({
   ...baseDefaults,
 
-  initSession({ trayCapacity, wildness, gameMode, scaleRoot, scaleType }) {
+  initSession({ trayCapacity, wildness, gameMode, gameParams }) {
+    const params = gameParams ?? {};
     const d = drawTo(
-      createDeck({
-        mode: gameMode,
-        wildness,
-        scaleRoot: scaleRoot ?? 0,
-        scaleType: scaleType ?? 'major',
-      }),
+      createDeck({ mode: gameMode, wildness, params }),
       trayCapacity,
     );
     set({
       ...baseDefaults,
       tiles: d.tiles, tray: d.tray, deck: d.deck, discardedCount: d.discardedCount,
-      trayCapacity, wildness, gameMode,
-      scaleRoot: scaleRoot ?? 0,
-      scaleType: scaleType ?? 'major',
+      trayCapacity, wildness, gameMode, gameParams: params,
       bpm: get().bpm, patchId: get().patchId,
     });
   },
@@ -487,7 +479,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       startTileId: f.startTileId, segmentSettings: f.segmentSettings,
       tray: f.placements.tray, deck: f.placements.deck, discardedCount: f.discardedCount,
       trayCapacity: f.trayCapacity, wildness: f.wildness,
-      gameMode: f.gameMode, scaleRoot: f.scaleRoot, scaleType: f.scaleType,
+      gameMode: f.gameMode, gameParams: f.gameParams ?? {},
       bpm: f.bpm, patchId: f.patchId, isPlaying: false,
     });
   },
