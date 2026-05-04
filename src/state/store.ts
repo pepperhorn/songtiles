@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, Wildness, GameMode, ScaleRoot, ScaleType, Paint, PaintId, PaintTool, PaintKind } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, Wildness, GameMode, ScaleRoot, ScaleType, PaintTool } from '../graph/types';
+import type { Group, GroupId, GroupTypeId } from '../groups/types';
 import { cellKey } from '../graph/types';
 import { newTileId } from '../utils/id';
 import { serialiseSession, deserialiseSession } from './persistence';
@@ -50,8 +51,8 @@ export interface AppState {
   // Selected tile (for detail panel)
   selectedTileId: TileId | null;
 
-  // Paint mode: selecting tiles to form chords / arps / erase paints.
-  paints: Record<PaintId, Paint>;
+  // Paint mode: selecting tiles to form chords / arps / erase groups.
+  groups: Record<GroupId, Group>;
   paintTool: PaintTool;
   paintingTileIds: TileId[];
 
@@ -110,7 +111,7 @@ const baseDefaults = {
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
   audioReady: false,
-  paints: {} as Record<PaintId, Paint>,
+  groups: {} as Record<GroupId, Group>,
   paintTool: null as PaintTool,
   paintingTileIds: [] as TileId[],
   activeTiles: {} as Record<TileId, true>,
@@ -240,18 +241,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (visited.size !== placedIds.length) return false;
     }
 
-    // Strip from any paints (delete paint if it falls below 2 tiles).
-    const nextPaints: Record<PaintId, Paint> = {};
-    for (const [pid, p] of Object.entries(s.paints)) {
-      if (!p.tileIds.includes(id)) { nextPaints[pid] = p; continue; }
-      const remaining = p.tileIds.filter(t => t !== id);
-      if (remaining.length >= 2) nextPaints[pid] = { ...p, tileIds: remaining };
+    // Strip from any groups (delete group if it falls below 2 tiles).
+    const nextGroups: Record<GroupId, Group> = {};
+    for (const [gid, g] of Object.entries(s.groups)) {
+      if (!g.tileIds.includes(id)) { nextGroups[gid] = g; continue; }
+      const remaining = g.tileIds.filter(t => t !== id);
+      if (remaining.length >= 2) nextGroups[gid] = { ...g, tileIds: remaining };
     }
 
     set({
       tiles: tilesMid,
       byCell: byCellNext,
-      paints: nextPaints,
+      groups: nextGroups,
     });
     return true;
   },
@@ -377,7 +378,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         return {
           segments: st.startTileId ? computeSegments(st.startTileId, st.tiles, st.byCell) : [],
           tiles: st.tiles,
-          paints: st.paints,
+          groups: st.groups,
           bpm: st.bpm,
         };
       },
@@ -531,20 +532,20 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeTileFromAllPaints(id) {
     const s = get();
-    const next: Record<PaintId, Paint> = {};
-    for (const [pid, p] of Object.entries(s.paints)) {
-      const remaining = p.tileIds.filter(t => t !== id);
-      if (remaining.length >= 2) next[pid] = { ...p, tileIds: remaining };
-      // else: drop the paint entirely (fewer than 2 tiles left).
+    const next: Record<GroupId, Group> = {};
+    for (const [gid, g] of Object.entries(s.groups)) {
+      const remaining = g.tileIds.filter(t => t !== id);
+      if (remaining.length >= 2) next[gid] = { ...g, tileIds: remaining };
+      // else: drop the group entirely (fewer than 2 tiles left).
     }
-    set({ paints: next });
+    set({ groups: next });
   },
 }));
 
 function commitInProgressPaint(
   set: (partial: Partial<AppState>) => void,
   get: () => AppState,
-  kind: PaintKind,
+  typeId: GroupTypeId,
 ) {
   const s = get();
   const ids = s.paintingTileIds.slice();
@@ -552,10 +553,10 @@ function commitInProgressPaint(
     set({ paintingTileIds: [] });
     return;
   }
-  const id = `paint_${newTileId()}`;
-  const paint: Paint = { id, kind, tileIds: ids };
+  const id = `group_${newTileId()}`;
+  const group: Group = { id, typeId, tileIds: ids };
   set({
-    paints: { ...s.paints, [id]: paint },
+    groups: { ...s.groups, [id]: group },
     paintingTileIds: [],
   });
 }
