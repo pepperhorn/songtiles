@@ -4,6 +4,7 @@ import { useTheme } from '../theme/ThemeProvider';
 import { computeSegments } from '../graph/segments';
 import { midiToPitchClass } from '../constants/noteColors';
 import type { Tile } from '../graph/types';
+import { getGroupType } from '../groups/registry';
 
 export function DetailPanel() {
   const { tokens } = useTheme();
@@ -12,7 +13,7 @@ export function DetailPanel() {
   const isPlaying = useAppStore(s => s.isPlaying);
   const tiles = useAppStore(s => s.tiles);
   const byCell = useAppStore(s => s.byCell);
-  const paints = useAppStore(s => s.paints);
+  const groups = useAppStore(s => s.groups);
   const toggleBass = useAppStore(s => s.toggleBass);
   const removeFromPaints = useAppStore(s => s.removeTileFromAllPaints);
   const selectedTile = useAppStore(s => (s.selectedTileId ? s.tiles[s.selectedTileId] : null));
@@ -33,8 +34,8 @@ export function DetailPanel() {
     border: `1px solid ${tokens.tilePlayhead}`,
   };
 
-  // Paints this tile belongs to (for the "Remove from paint" affordance).
-  const tilePaints = Object.values(paints).filter(p => p.tileIds.includes(selected));
+  // Groups this tile belongs to (for the "Remove from paint" affordance).
+  const tileGroups = Object.values(groups).filter(g => g.tileIds.includes(selected));
 
   return (
     <div
@@ -67,19 +68,22 @@ export function DetailPanel() {
         </div>
       )}
 
-      {tilePaints.length > 0 && (
+      {tileGroups.length > 0 && (
         <div className="detail-row mb-3 pr-8">
           <div className="detail-label text-sm opacity-60 mb-1">In paints</div>
           <div className="detail-paint-list flex flex-wrap gap-2">
-            {tilePaints.map(p => (
-              <span
-                key={p.id}
-                className="paint-chip text-xs px-2 py-1 rounded-full"
-                style={{ ...optionBase, ...optionSelected }}
-              >
-                {p.kind === 'chord' ? '♬ chord' : '∿ arp'} ({p.tileIds.length})
-              </span>
-            ))}
+            {tileGroups.map(g => {
+              const type = getGroupType(g.typeId);
+              return (
+                <span
+                  key={g.id}
+                  className="paint-chip text-xs px-2 py-1 rounded-full"
+                  style={{ ...optionBase, ...optionSelected }}
+                >
+                  {type ? `${type.icon} ${type.label.toLowerCase()}` : g.typeId} ({g.tileIds.length})
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -97,7 +101,7 @@ export function DetailPanel() {
           >
             {selectedTile.bass ? '↓ Bass on' : 'Flip to bass'}
           </button>
-          {tilePaints.length > 0 && (
+          {tileGroups.length > 0 && (
             <button
               type="button"
               className="paint-remove px-3 py-1 rounded-full text-sm font-medium"

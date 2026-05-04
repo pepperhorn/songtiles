@@ -2,30 +2,37 @@ import type { CSSProperties } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
 import type { PaintTool } from '../graph/types';
+import { listGroupTypes } from '../groups/registry';
 
-const TOOLS: Array<{ tool: Exclude<PaintTool, null>; label: string; icon: string }> = [
-  { tool: 'chord',  label: 'Chord',  icon: '♬' },
-  { tool: 'arp',    label: 'Arp',    icon: '∿' },
-  { tool: 'bass',   label: 'Bass',   icon: '↓' },
-  { tool: 'eraser', label: 'Erase',  icon: '⌫' },
-];
+interface ToolEntry {
+  tool: Exclude<PaintTool, null>;
+  label: string;
+  icon: string;
+  color: string;
+}
 
 export function PaintToolbar() {
   const { tokens } = useTheme();
   const tool = useAppStore(s => s.paintTool);
   const setTool = useAppStore(s => s.setPaintTool);
 
+  const groupTools: ToolEntry[] = listGroupTypes().map(gt => ({
+    tool: gt.id as Exclude<PaintTool, null>,
+    label: gt.label,
+    icon: gt.icon,
+    color: gt.color,
+  }));
+  const TOOLS: ToolEntry[] = [
+    ...groupTools,
+    { tool: 'bass',   label: 'Bass',  icon: '↓', color: '#0ea5e9' },
+    { tool: 'eraser', label: 'Erase', icon: '⌫', color: '#ef4444' },
+  ];
+
   const btnStyle: CSSProperties = {
     background: tokens.topBarBg,
     color: tokens.textPrimary,
     pointerEvents: 'auto',
     fontWeight: 700,
-  };
-  const TOOL_COLOR: Record<Exclude<PaintTool, null>, string> = {
-    chord: '#3b82f6',
-    arp: '#a855f7',
-    bass: '#0ea5e9',
-    eraser: '#ef4444',
   };
 
   return (
@@ -37,7 +44,7 @@ export function PaintToolbar() {
             key={t.tool}
             type="button"
             className={`paint-tool-btn paint-tool-${t.tool} btn-chunky px-3 py-2 rounded-lg text-sm flex items-center gap-1`}
-            style={isActive ? { ...btnStyle, background: TOOL_COLOR[t.tool], color: '#fff' } : btnStyle}
+            style={isActive ? { ...btnStyle, background: t.color, color: '#fff' } : btnStyle}
             onClick={() => setTool(isActive ? null : t.tool)}
             aria-label={`${t.label} paint tool`}
             aria-pressed={isActive}

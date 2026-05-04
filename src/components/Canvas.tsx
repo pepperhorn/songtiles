@@ -17,7 +17,7 @@ export function Canvas() {
   const tiles = useAppStore(s => s.tiles);
   const byCell = useAppStore(s => s.byCell);
   const startTileId = useAppStore(s => s.startTileId);
-  const paints = useAppStore(s => s.paints);
+  const groups = useAppStore(s => s.groups);
   const paintTool = useAppStore(s => s.paintTool);
   const paintingTileIds = useAppStore(s => s.paintingTileIds);
   const activeTiles = useAppStore(s => s.activeTiles);
@@ -29,13 +29,14 @@ export function Canvas() {
   const PAINT_ARP = '#a855f7';     // purple
   const PAINT_BOTH = '#ec4899';    // bright magenta-purple
 
-  // Index tile ids → set of paint kinds for quick badge rendering.
+  // Index tile ids → set of group type ids for quick badge rendering.
   const tilePaintKinds = (() => {
     const map = new Map<TileId, Set<'chord'|'arp'>>();
-    for (const p of Object.values(paints)) {
-      for (const tid of p.tileIds) {
+    for (const g of Object.values(groups)) {
+      if (g.typeId !== 'chord' && g.typeId !== 'arp') continue;
+      for (const tid of g.tileIds) {
         const set = map.get(tid) ?? new Set();
-        set.add(p.kind);
+        set.add(g.typeId);
         map.set(tid, set);
       }
     }
