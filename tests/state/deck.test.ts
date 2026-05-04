@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { createDeck, drawTo, returnToDeck, discardFromTray } from '../../src/state/deck';
+import '../../src/games/builtin';
 
 describe('deck — explorer mode', () => {
   it('emits 12 instances of every pitch class (144 note tiles, no wildcards)', () => {
-    const r = createDeck({ mode: 'explorer', wildness: 'tame' });
+    const r = createDeck({ mode: 'explorer', wildness: 'tame', params: {} });
     const notes = Object.values(r.tiles).filter(t => t.kind === 'note');
     // Count instances per pitch class.
     const byPc: Record<number, number> = {};
@@ -24,9 +25,9 @@ describe('deck — explorer mode', () => {
   });
 
   it('wildness scales the wildcard count proportionally to notes', () => {
-    const tame   = createDeck({ mode: 'explorer', wildness: 'tame' });
-    const wild   = createDeck({ mode: 'explorer', wildness: 'wild' });
-    const wilder = createDeck({ mode: 'explorer', wildness: 'wilder' });
+    const tame   = createDeck({ mode: 'explorer', wildness: 'tame', params: {} });
+    const wild   = createDeck({ mode: 'explorer', wildness: 'wild', params: {} });
+    const wilder = createDeck({ mode: 'explorer', wildness: 'wilder', params: {} });
     const w = (r: ReturnType<typeof createDeck>) =>
       Object.values(r.tiles).filter(t => t.kind === 'repeat').length;
     // 144 notes × {0.05, 0.10, 0.15} → 7, 14, 22.
@@ -42,7 +43,7 @@ describe('deck — explorer mode', () => {
 describe('deck — scale mode', () => {
   it('only includes scale pitch classes; 12 of each', () => {
     // C major: PCs 0, 2, 4, 5, 7, 9, 11. 7 PCs × 12 = 84 notes.
-    const r = createDeck({ mode: 'scale', wildness: 'tame', scaleRoot: 0, scaleType: 'major' });
+    const r = createDeck({ mode: 'scale', wildness: 'tame', params: { root: 0, type: 'major' } });
     const notes = Object.values(r.tiles).filter(t => t.kind === 'note');
     expect(notes).toHaveLength(84);
     const allowed = new Set([0, 2, 4, 5, 7, 9, 11]);
@@ -59,7 +60,7 @@ describe('deck — scale mode', () => {
 
 describe('deck — drawTo / returnToDeck / discardFromTray', () => {
   it('drawTo(record, 6) fills tray to 6 from the top of the deck', () => {
-    const r = createDeck({ mode: 'explorer', wildness: 'tame' });
+    const r = createDeck({ mode: 'explorer', wildness: 'tame', params: {} });
     const topSix = r.deck.slice(0, 6);
     const filled = drawTo(r, 6);
     expect(filled.tray).toHaveLength(6);
@@ -67,7 +68,7 @@ describe('deck — drawTo / returnToDeck / discardFromTray', () => {
   });
 
   it('returnToDeck adds the tile id back to the bottom of the deck', () => {
-    const filled = drawTo(createDeck({ mode: 'explorer', wildness: 'tame' }), 6);
+    const filled = drawTo(createDeck({ mode: 'explorer', wildness: 'tame', params: {} }), 6);
     const returnedId = filled.tray[0];
     const after = returnToDeck(filled, returnedId);
     expect(after.tray).not.toContain(returnedId);
@@ -75,7 +76,7 @@ describe('deck — drawTo / returnToDeck / discardFromTray', () => {
   });
 
   it('discardFromTray removes tile from tiles registry and increments discardedCount', () => {
-    const filled = drawTo(createDeck({ mode: 'explorer', wildness: 'tame' }), 6);
+    const filled = drawTo(createDeck({ mode: 'explorer', wildness: 'tame', params: {} }), 6);
     const discardedId = filled.tray[0];
     const after = discardFromTray(filled, discardedId);
     expect(after.tray).not.toContain(discardedId);

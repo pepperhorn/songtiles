@@ -27,7 +27,9 @@ export type TrayCapacity = 6|8|12;
 export type Wildness = 'tame' | 'wild' | 'wilder';
 export const WILDNESS_RATIO: Record<Wildness, number> = { tame: 0.05, wild: 0.10, wilder: 0.15 };
 
-export type GameMode = 'explorer' | 'scale';
+/** GameMode is now an open id (registered via src/games/registry).
+ *  Keeping it as a type alias for the existing string-typed call sites. */
+export type GameMode = string;
 export type ScaleType = 'major' | 'minor';
 /** Pitch class 0..11 (0 = C, 1 = C#, ..., 11 = B). */
 export type ScaleRoot = 0|1|2|3|4|5|6|7|8|9|10|11;
