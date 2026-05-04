@@ -7,6 +7,7 @@ import { isEndpoint } from '../graph/adjacency';
 import { setCanvasResolver, isOverTray } from '../state/dragController';
 import { findRepeatSections } from '../graph/segments';
 import type { TileId } from '../graph/types';
+import { getTileKind } from '../tiles/registry';
 
 const CELL = 96;
 const ZOOM_MIN = 0.4;
@@ -283,8 +284,7 @@ export function Canvas() {
     const last = lastTapRef.current;
     if (last && last.id === id && now - last.t < DOUBLE_TAP_MS) {
       lastTapRef.current = null;
-      if (t.kind === 'note') s.toggleBass(id);
-      else if (t.kind === 'repeat') s.cycleRepeatCount(id);
+      getTileKind(t.kind)?.onTap?.(id, useAppStore);
       return;
     }
     lastTapRef.current = { id, t: now };
