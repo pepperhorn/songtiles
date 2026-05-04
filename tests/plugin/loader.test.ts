@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import {
-  _validateManifest, _checkApiCompatibility, PluginLoadError,
+  _validateManifest, _checkApiCompatibility, _checkEntitlement, PluginLoadError,
+  setEntitlementResolver,
 } from '../../src/plugin/loader';
 import { CURRENT_API_VERSION } from '../../src/plugin/api';
+import type { PluginManifest } from '../../src/plugin/types';
 
 describe('plugin manifest validation', () => {
   it('accepts a well-formed manifest', () => {
@@ -43,6 +45,62 @@ describe('plugin manifest validation', () => {
         'u',
       )
     ).toThrow(/register.*function/);
+  });
+});
+
+describe('plugin entitlement', () => {
+  const baseManifest: PluginManifest = {
+    apiVersion: 1, id: 'p', name: 'P', version: '0.1.0', register: () => {},
+  };
+
+  afterEach(() => setEntitlementResolver(null));
+
+  it('passes through when no resolver and plugin is free', async () => {
+    await expect(_checkEntitlement(baseManifest, 'u')).resolves.toBeUndefined();
+  });
+
+  it('rejects paid plugin when no resolver is configured', async () => {
+    await expect(
+      _checkEntitlement({ ...baseManifest, requiresEntitlement: true }, 'u')
+    ).rejects.toThrow(/no EntitlementResolver/);
+  });
+
+  it('passes through when resolver returns allowed:true', async () => {
+    setEntitlementResolver(() => ({ allowed: true }));
+    await expect(
+      _checkEntitlement({ ...baseManifest, requiresEntitlement: true }, 'u')
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects with the resolver-supplied reason when allowed:false', async () => {
+    setEntitlementResolver(() => ({ allowed: false, reason: 'subscription expired' }));
+    await expect(
+      _checkEntitlement({ ...baseManifest, requiresEntitlement: true }, 'u')
+    ).rejects.toThrow(/subscription expired/);
+  });
+
+  it('runs the resolver even for free plugins (host policy can override)', async () => {
+    let called = false;
+    setEntitlementResolver(() => { called = true; return { allowed: true }; });
+    await _checkEntitlement(baseManifest, 'u');
+    expect(called).toBe(true);
+  });
+
+  it('wraps resolver exceptions in PluginLoadError', async () => {
+    setEntitlementResolver(() => { throw new Error('backend down'); });
+    await expect(
+      _checkEntitlement({ ...baseManifest, requiresEntitlement: true }, 'u')
+    ).rejects.toThrow(PluginLoadError);
+  });
+
+  it('supports async resolvers', async () => {
+    setEntitlementResolver(async () => {
+      await new Promise(r => setTimeout(r, 0));
+      return { allowed: false, reason: 'async denial' };
+    });
+    await expect(
+      _checkEntitlement({ ...baseManifest, requiresEntitlement: true }, 'u')
+    ).rejects.toThrow(/async denial/);
   });
 });
 

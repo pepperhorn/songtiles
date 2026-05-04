@@ -1,9 +1,28 @@
 import {
   CURRENT_API_VERSION, MIN_SUPPORTED_API_VERSION, PLUGIN_API,
 } from './api';
-import type { PluginManifest } from './types';
+import type { EntitlementResolver, PluginManifest } from './types';
 
 const loaded = new Set<string>();
+
+let entitlementResolver: EntitlementResolver | null = null;
+
+/**
+ * Configure the host's entitlement policy. The resolver is consulted before
+ * any plugin's register() runs. Call this once at boot, before loadPlugin().
+ *
+ * If a manifest declares `requiresEntitlement: true` and no resolver is
+ * configured, the loader refuses to load it ("entitlement required but no
+ * resolver configured") — this is the safety net that prevents paid plugins
+ * from running free if entitlement infrastructure is misconfigured.
+ */
+export function setEntitlementResolver(resolver: EntitlementResolver | null): void {
+  entitlementResolver = resolver;
+}
+
+export function getEntitlementResolver(): EntitlementResolver | null {
+  return entitlementResolver;
+}
 
 export class PluginLoadError extends Error {
   constructor(message: string, public url: string, public cause?: unknown) {
@@ -20,6 +39,37 @@ export function _validateManifest(m: unknown, url: string): PluginManifest {
 /** Internal — exported for tests. Throws PluginLoadError on incompatible version. */
 export function _checkApiCompatibility(manifest: PluginManifest, url: string): void {
   checkApiCompatibility(manifest, url);
+}
+
+/** Internal — exported for tests. Throws PluginLoadError if entitlement denies. */
+export async function _checkEntitlement(manifest: PluginManifest, url: string): Promise<void> {
+  return checkEntitlement(manifest, url);
+}
+
+async function checkEntitlement(manifest: PluginManifest, url: string): Promise<void> {
+  if (manifest.requiresEntitlement && !entitlementResolver) {
+    throw new PluginLoadError(
+      `Plugin "${manifest.id}" requires an entitlement but no EntitlementResolver ` +
+      `is configured on the host. Either configure one via setEntitlementResolver(), ` +
+      `or refuse to load this plugin.`,
+      url,
+    );
+  }
+  if (!entitlementResolver) return;
+  let result: { allowed: boolean; reason?: string };
+  try {
+    result = await entitlementResolver(manifest);
+  } catch (err) {
+    throw new PluginLoadError(
+      `EntitlementResolver threw while checking "${manifest.id}"`, url, err,
+    );
+  }
+  if (!result?.allowed) {
+    throw new PluginLoadError(
+      `Plugin "${manifest.id}" denied by entitlement: ${result?.reason ?? 'no reason given'}`,
+      url,
+    );
+  }
 }
 
 function validateManifest(m: unknown, url: string): PluginManifest {
@@ -74,6 +124,7 @@ export async function loadPlugin(url: string): Promise<PluginManifest> {
 
   const manifest = validateManifest(mod.default, url);
   checkApiCompatibility(manifest, url);
+  await checkEntitlement(manifest, url);
 
   if (loaded.has(manifest.id)) {
     // eslint-disable-next-line no-console
