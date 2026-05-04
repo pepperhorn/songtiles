@@ -15,7 +15,7 @@ export function getStorage(): CacheStorage {
 // Cached-patch manifest (localStorage-backed, keyed by patch name)
 // ---------------------------------------------------------------------------
 
-const MANIFEST_KEY = 'songtiles-cached-patches';
+const MANIFEST_KEY = 'doremino-cached-patches';
 
 function loadManifest(): Set<string> {
   try {

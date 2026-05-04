@@ -168,7 +168,7 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
               trayCapacity, wildness, gameMode,
               ...(gameMode === 'scale' ? { scaleRoot, scaleType } : {}),
             });
-            try { localStorage.setItem('songtiles.firstRunDone', 'yes'); } catch {}
+            try { localStorage.setItem('doremino.firstRunDone', 'yes'); } catch {}
             onComplete();
           }}
         >

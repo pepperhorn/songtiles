@@ -18,7 +18,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     let stored: string | null = null;
     try {
       stored = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
-        ? localStorage.getItem('songtiles.theme')
+        ? localStorage.getItem('doremino.theme')
         : null;
     } catch {
       stored = null;
@@ -54,7 +54,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     try {
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('songtiles.theme', mode);
+        localStorage.setItem('doremino.theme', mode);
       }
     } catch {
       // ignore localStorage errors in test/SSR environments

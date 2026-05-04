@@ -28,8 +28,8 @@ function Inner() {
   // Determine initial showSetup: show modal only if no autosave AND no firstRunDone flag.
   const [showSetup, setShowSetup] = useState<boolean>(() => {
     try {
-      const hasAutosave = !!localStorage.getItem('songtiles.autosave');
-      const firstRunDone = localStorage.getItem('songtiles.firstRunDone') === 'yes';
+      const hasAutosave = !!localStorage.getItem('doremino.autosave');
+      const firstRunDone = localStorage.getItem('doremino.firstRunDone') === 'yes';
       return !hasAutosave && !firstRunDone;
     } catch {
       return false;
@@ -39,7 +39,7 @@ function Inner() {
   useEffect(() => {
     if (showSetup) return;
     try {
-      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('songtiles.autosave') : null;
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('doremino.autosave') : null;
       if (raw) {
         const f = deserialiseSession(JSON.parse(raw));
         useAppStore.setState({
@@ -60,8 +60,8 @@ function Inner() {
     if (!confirm('Start a new game? Your current canvas will be lost.')) return;
     stop();
     try {
-      localStorage.removeItem('songtiles.autosave');
-      localStorage.removeItem('songtiles.firstRunDone');
+      localStorage.removeItem('doremino.autosave');
+      localStorage.removeItem('doremino.firstRunDone');
     } catch {}
     setShowSetup(true);
   }

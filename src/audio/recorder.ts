@@ -17,12 +17,12 @@ export interface RecordOptions {
   runPlayback: () => Promise<void>;
   /** Hard cap, default 60s. Recording stops automatically at this point. */
   maxDurationMs?: number;
-  /** Filename stem (no extension), default 'songtiles'. */
+  /** Filename stem (no extension), default 'doremino'. */
   filenameStem?: string;
 }
 
 export async function recordToFile(opts: RecordOptions): Promise<void> {
-  const { audioContext, masterNode, runPlayback, maxDurationMs = 60_000, filenameStem = 'songtiles' } = opts;
+  const { audioContext, masterNode, runPlayback, maxDurationMs = 60_000, filenameStem = 'doremino' } = opts;
 
   if (typeof MediaRecorder === 'undefined') {
     throw new Error('MediaRecorder is not supported in this browser.');

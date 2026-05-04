@@ -420,7 +420,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       masterNode: player.engine.getMasterNode(),
       runPlayback,
       maxDurationMs: 60_000,
-      filenameStem: 'songtiles',
+      filenameStem: 'doremino',
     });
   },
 
@@ -474,7 +474,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
-    a.href = url; a.download = `songtiles-${stamp}.json`; a.click();
+    a.href = url; a.download = `doremino-${stamp}.json`; a.click();
     URL.revokeObjectURL(url);
   },
 
@@ -563,6 +563,6 @@ function commitInProgressPaint(
 // LocalStorage autosave — runs on every store mutation in browser environments.
 if (typeof window !== 'undefined') {
   useAppStore.subscribe(state => {
-    try { localStorage.setItem('songtiles.autosave', serialiseSession(state)); } catch {}
+    try { localStorage.setItem('doremino.autosave', serialiseSession(state)); } catch {}
   });
 }
