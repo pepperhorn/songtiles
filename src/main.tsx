@@ -5,9 +5,17 @@ import './index.css'
 import './tiles/builtin'
 import './groups/builtin'
 import './games/builtin'
+import { loadPluginsFromQuery } from './plugin/loader'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+async function bootstrap() {
+  // External plugins specified via ?plugin=URL query params are loaded before
+  // first render so SetupModal & co. see plugin-registered modes/kinds/groups.
+  await loadPluginsFromQuery()
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}
+
+bootstrap()
