@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "build:demo-plugin": "node examples/demo-plugin/build.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",
