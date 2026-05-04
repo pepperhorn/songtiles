@@ -8,4 +8,10 @@ Status: design phase. See [`docs/superpowers/specs/2026-05-02-songtiles-design.m
 
 ## Plugin architecture
 
-The app is being refactored toward a pluggable framework so proprietary game modes and content can extend the OSS core without forking it. See [`docs/PLUGIN_ARCHITECTURE.md`](docs/PLUGIN_ARCHITECTURE.md) for what's pluggable today (group types, game modes), what's still hardcoded, and the registry interfaces.
+The app supports external plugin bundles loaded by URL at boot. Plugins can register new game modes, group types, and tile kinds against a versioned API. See:
+
+- [`docs/PLUGIN_ARCHITECTURE.md`](docs/PLUGIN_ARCHITECTURE.md) — registry surfaces and what's pluggable today
+- [`docs/PLUGIN_AUTHORING.md`](docs/PLUGIN_AUTHORING.md) — how to write a plugin (worked example)
+- [`docs/PLUGIN_API_CHANGELOG.md`](docs/PLUGIN_API_CHANGELOG.md) — API version history
+
+Try the demo: `npm run build:demo-plugin && npm run dev`, then visit `/?plugin=/plugins/demo.js`.

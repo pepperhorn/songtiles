@@ -11,9 +11,9 @@ Doremino is being refactored to support pluggable game modules. This document tr
 | **Tile kinds** (visual + tap + deck wildcards) | ✅ Pluggable (visual layer) | `src/tiles/registry.ts` | `note`, `repeat` |
 | **Playback flow control** (repeat block-loop, future jumps / branches) | ❌ Hardcoded in playhead | — | `repeat` only |
 | **Interactive prompts** (sing-the-pitch, dice roll) | ❌ Not implemented | — | — |
-| **Plugin loader** (load proprietary bundle at boot/entitlement) | ❌ Not implemented | — | — |
+| **Plugin loader** (load ESM bundle by URL at boot) | ✅ Live | `src/plugin/loader.ts` | `?plugin=URL` query string |
 
-Today, "pluggable" means *registered via a registry that proprietary modules can write to* — but registrations still happen in the OSS core via `src/main.tsx`. The actual loader for external bundles is a future plan.
+External plugins are loaded at boot via `?plugin=URL` query-string params. Each plugin is an ESM bundle whose default export is a `PluginManifest` with an `apiVersion` field; the loader validates the manifest, enforces version compatibility, then calls `manifest.register(api)`. See [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) for how to write a plugin and [`PLUGIN_API_CHANGELOG.md`](PLUGIN_API_CHANGELOG.md) for the API version history.
 
 ## Group registry
 
@@ -100,10 +100,11 @@ Register: `registerTileKind(MY_KIND)`.
 1. **Tile type union.** Opening `Tile` to arbitrary `kind: string` requires touching every narrowing site (playhead, canvas adjacency, repeats utility). Future plan.
 2. **Flow-control playback.** The playhead has dedicated logic for repeat tiles (block-folding the path into looping sections + tail). Generalizing this to plugin-defined flow control requires an interface where a tile kind exposes a `walk(path, state)` reducer.
 3. **Interactive prompts.** `prompt(payload) -> Promise<result>` channel through the scheduler so games like "sing the pitch" or "roll the dice" can pause playback, surface UI, and resume.
-4. **Plugin loader.** Proprietary bundle loading via dynamic `import()` based on entitlements.
+4. **Entitlement / signature verification.** The loader fetches and runs any plugin URL it's given. Paywall, license validation, and code-signing belong on top of this surface in a future plan.
 
 ## Migration history
 
 - [`docs/superpowers/plans/2026-05-04-group-registry.md`](superpowers/plans/2026-05-04-group-registry.md) — Step 1: Paint → Group registry.
 - [`docs/superpowers/plans/2026-05-04-gamemode-registry.md`](superpowers/plans/2026-05-04-gamemode-registry.md) — Step 2: GameMode registry.
 - [`docs/superpowers/plans/2026-05-04-tilekind-registry.md`](superpowers/plans/2026-05-04-tilekind-registry.md) — Step 3: TileKind registry (visual layer).
+- [`docs/superpowers/plans/2026-05-04-plugin-loader.md`](superpowers/plans/2026-05-04-plugin-loader.md) — Step 4: URL-based plugin loader + versioned API.
