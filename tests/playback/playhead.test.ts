@@ -3,7 +3,9 @@ import { advancePlayhead } from '../../src/playback/playhead';
 import { computeSegments } from '../../src/graph/segments';
 import type { ScheduledNote } from '../../src/playback/events';
 import type { Segment } from '../../src/graph/segments';
-import type { Tile, TileId, Paint, PaintId } from '../../src/graph/types';
+import type { Tile, TileId } from '../../src/graph/types';
+import type { Group, GroupId } from '../../src/groups/types';
+import '../../src/groups/builtin';
 
 const n = (id: string, x: number, y: number, pitch = 60): Tile =>
   ({ id, cell: { x, y }, kind: 'note', pitch, bass: false } as Tile);
@@ -22,7 +24,7 @@ describe('advancePlayhead — sequential mode', () => {
     const emitted: ScheduledNote[] = [];
 
     advancePlayhead({
-      segments, tiles, paints: {},
+      segments, tiles, groups: {},
       startTime: 1.0, beatSec, windowEnd: 1.0 + 5 * beatSec,
       emit: ev => emitted.push(ev),
     });
@@ -43,7 +45,7 @@ describe('advancePlayhead — sequential mode', () => {
     ];
     const emitted: ScheduledNote[] = [];
     advancePlayhead({
-      segments, tiles, paints: {},
+      segments, tiles, groups: {},
       startTime: 1.0, beatSec: 0.5, windowEnd: 1.5,
       emit: ev => emitted.push(ev),
     });
@@ -63,7 +65,7 @@ describe('advancePlayhead — bass mode', () => {
     const segs = computeSegments('a', tiles, byCell);
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments: segs, tiles, paints: {},
+      segments: segs, tiles, groups: {},
       startTime: 0, beatSec: 0.5, windowEnd: 10,
       emit: ev => events.push(ev),
     });
@@ -97,7 +99,7 @@ describe('advancePlayhead — repeat tiles with branch on final pass', () => {
     const segs = computeSegments('a', tiles, byCell);
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments: segs, tiles, paints: {},
+      segments: segs, tiles, groups: {},
       startTime: 0, beatSec: 1, windowEnd: 100,
       emit: ev => events.push(ev),
     });
@@ -129,7 +131,7 @@ describe('advancePlayhead — repeat tiles', () => {
     const segs = computeSegments('a', tiles, byCell);
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments: segs, tiles, paints: {},
+      segments: segs, tiles, groups: {},
       startTime: 0, beatSec: 0.5, windowEnd: 100,
       emit: ev => events.push(ev),
     });
@@ -153,7 +155,7 @@ describe('advancePlayhead — branching at intersection', () => {
 
     const emitted: ScheduledNote[] = [];
     advancePlayhead({
-      segments: segs, tiles, paints: {},
+      segments: segs, tiles, groups: {},
       startTime: 0, beatSec: 0.5, windowEnd: 10,
       emit: ev => emitted.push(ev),
     });
@@ -180,13 +182,13 @@ describe('advancePlayhead — paints', () => {
     const segments: Segment[] = [
       { rootId: 'a', tiles: ['a', 'b', 'c', 'd'], endsAtIntersection: false },
     ];
-    const paints: Record<PaintId, Paint> = {
-      p1: { id: 'p1', kind: 'chord', tileIds: ['b', 'c'] },
+    const groups: Record<GroupId, Group> = {
+      p1: { id: 'p1', typeId: 'chord', tileIds: ['b', 'c'] },
     };
 
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments, tiles, paints,
+      segments, tiles, groups,
       startTime: 0, beatSec: 0.5, windowEnd: 10,
       emit: ev => events.push(ev),
     });
@@ -218,13 +220,13 @@ describe('advancePlayhead — paints', () => {
     const segments: Segment[] = [
       { rootId: 'a', tiles: ['a', 'b', 'c', 'd'], endsAtIntersection: false },
     ];
-    const paints: Record<PaintId, Paint> = {
-      p1: { id: 'p1', kind: 'arp', tileIds: ['b', 'c'] },
+    const groups: Record<GroupId, Group> = {
+      p1: { id: 'p1', typeId: 'arp', tileIds: ['b', 'c'] },
     };
 
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments, tiles, paints,
+      segments, tiles, groups,
       startTime: 0, beatSec: 0.5, windowEnd: 10,
       emit: ev => events.push(ev),
     });
@@ -251,14 +253,14 @@ describe('advancePlayhead — paints', () => {
       { rootId: 'a', tiles: ['a', 'b', 'c', 'd'], endsAtIntersection: false },
     ];
     // Chord {b, c, d} and arp {b, c} — tile b is in both.
-    const paints: Record<PaintId, Paint> = {
-      pChord: { id: 'pChord', kind: 'chord', tileIds: ['b', 'c', 'd'] },
-      pArp:   { id: 'pArp',   kind: 'arp',   tileIds: ['b', 'c'] },
+    const groups: Record<GroupId, Group> = {
+      pChord: { id: 'pChord', typeId: 'chord', tileIds: ['b', 'c', 'd'] },
+      pArp:   { id: 'pArp',   typeId: 'arp',   tileIds: ['b', 'c'] },
     };
 
     const events: ScheduledNote[] = [];
     advancePlayhead({
-      segments, tiles, paints,
+      segments, tiles, groups,
       startTime: 0, beatSec: 0.5, windowEnd: 10,
       emit: ev => events.push(ev),
     });

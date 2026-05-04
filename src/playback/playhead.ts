@@ -1,11 +1,13 @@
 import type { Segment } from '../graph/segments';
-import type { Tile, TileId, Paint, PaintId } from '../graph/types';
+import type { Tile, TileId } from '../graph/types';
+import type { Group, GroupId } from '../groups/types';
+import { getGroupType } from '../groups/registry';
 import type { ScheduleEmit } from './events';
 
 interface Args {
   segments: Segment[];
   tiles: Record<TileId, Tile>;
-  paints: Record<PaintId, Paint>;
+  groups: Record<GroupId, Group>;
   startTime: number;     // audio context time of beat 0
   beatSec: number;
   windowEnd: number;     // emit no event with `when` >= this
@@ -15,36 +17,29 @@ interface Args {
 /**
  * Walk the segment graph in beat-time and emit scheduled notes.
  *
- * Default behaviour is one note per tile per beat (sequential) with bass
- * voice for any tile flagged `bass`. Paints layer on top:
- *
- *   - Chord paint: when the playhead first hits any tile in the paint, all N
- *     tiles fire simultaneously at that beat with duration = N * beatSec.
- *   - Arp paint: when first hit, schedule 2N pulses at half-tick intervals
- *     over N beats total — the cycle through the N tiles plays twice.
- *   - Both: a tile in both a chord paint and an arp paint triggers both
- *     behaviours simultaneously when first hit.
- *
- * Once a paint has fired in a pass, every tile in that paint is silenced
- * for the remainder of the pass — so subsequent encounters by branched
- * playheads don't re-trigger the same paint.
+ * Default behaviour is one note per tile per beat with bass voice for any tile
+ * flagged `bass`. Groups layer on top: when the playhead first hits any tile
+ * in a group, the group's registered GroupType.onFire emits the group's audio
+ * (e.g. chord = stacked simultaneous notes; arp = pulse cycle). Once a group
+ * has fired in a pass, every tile in that group is silenced for the remainder
+ * of the pass — so subsequent encounters by branched playheads don't re-trigger.
  */
-export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, windowEnd, emit }: Args) {
+export function advancePlayhead({ segments, tiles, groups, startTime, beatSec, windowEnd, emit }: Args) {
   if (segments.length === 0) return;
 
-  // Index: tileId → list of paints that contain it.
-  const paintsByTile = new Map<TileId, Paint[]>();
-  for (const p of Object.values(paints)) {
-    for (const t of p.tileIds) {
-      const list = paintsByTile.get(t) ?? [];
-      list.push(p);
-      paintsByTile.set(t, list);
+  // Index: tileId → list of groups that contain it.
+  const groupsByTile = new Map<TileId, Group[]>();
+  for (const g of Object.values(groups)) {
+    for (const t of g.tileIds) {
+      const list = groupsByTile.get(t) ?? [];
+      list.push(g);
+      groupsByTile.set(t, list);
     }
   }
 
-  // Mark each paint as fired-or-not for this pass.
-  const firedPaints = new Set<PaintId>();
-  // Tiles that have been silenced because they belong to a paint that already fired.
+  // Mark each group as fired-or-not for this pass.
+  const firedGroups = new Set<GroupId>();
+  // Tiles silenced because they belong to a group that already fired.
   const consumedTiles = new Set<TileId>();
 
   const adj = (a?: Tile, b?: Tile) => {
@@ -94,9 +89,9 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
     });
 
     // Fire one tile at the given beat offset. Returns the number of beats this
-    // tile consumes (1 for a normal note, 1 for the lead tile of a chord/arp
-    // paint — since the playhead still advances one tick on the canvas — but
-    // the paint's audio effect spans N beats), or 0 for repeat tiles.
+    // tile consumes (1 for a normal note, 1 for the lead tile of a group — the
+    // playhead still advances one tick on the canvas — but the group's audio
+    // effect may span multiple beats), or 0 for repeat tiles.
     const fireIndex = (i: number, beatOffset: number): { beats: number; aborted: boolean } => {
       const item = path[i];
       if (item.kind !== 'note') return { beats: 0, aborted: false };
@@ -105,12 +100,12 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
       const when = startTime + (beat + beatOffset) * beatSec;
       if (when >= windowEnd) return { beats: 0, aborted: true };
 
-      // If the tile is already consumed by a paint that fired earlier, silence it.
+      // If the tile is already consumed by a group that fired earlier, silence it.
       if (consumedTiles.has(item.id)) return { beats: 1, aborted: false };
 
-      // Check paints containing this tile.
-      const tilePaints = paintsByTile.get(item.id) ?? [];
-      const unfired = tilePaints.filter(p => !firedPaints.has(p.id));
+      // Check groups containing this tile.
+      const tileGroups = groupsByTile.get(item.id) ?? [];
+      const unfired = tileGroups.filter(g => !firedGroups.has(g.id));
 
       if (unfired.length === 0) {
         // Plain sequential note.
@@ -123,41 +118,17 @@ export function advancePlayhead({ segments, tiles, paints, startTime, beatSec, w
         return { beats: 1, aborted: false };
       }
 
-      // At least one paint will fire. Mark all paint tiles consumed.
-      for (const p of unfired) {
-        firedPaints.add(p.id);
-        for (const tid of p.tileIds) consumedTiles.add(tid);
+      // At least one group will fire. Mark all group tiles consumed.
+      for (const g of unfired) {
+        firedGroups.add(g.id);
+        for (const tid of g.tileIds) consumedTiles.add(tid);
       }
 
-      // Emit each paint's audio.
-      for (const p of unfired) {
-        const noteIds = p.tileIds.filter(id => tiles[id]?.kind === 'note');
-        const noteTiles = noteIds.map(id => tiles[id]) as Array<Extract<Tile, { kind: 'note' }>>;
-        if (noteTiles.length === 0) continue;
-        const N = noteTiles.length;
-        if (p.kind === 'chord') {
-          // All notes fire at `when` with duration = N * beatSec (so the chord
-          // sustains for as many ticks as it has notes).
-          const dur = N * beatSec;
-          for (const nt of noteTiles) {
-            emit({ midi: nt.pitch, when, duration: dur, velocity: 0.8, tileId: nt.id });
-          }
-        } else if (p.kind === 'arp') {
-          // 2N pulses over N beats: each pulse 0.5 * beatSec; cycle through
-          // notes twice. Pulse k → noteTiles[k % N].
-          const pulseSec = beatSec / 2;
-          const totalPulses = 2 * N;
-          for (let k = 0; k < totalPulses; k++) {
-            const nt = noteTiles[k % N];
-            emit({
-              midi: nt.pitch,
-              when: when + k * pulseSec,
-              duration: pulseSec,
-              velocity: 0.8,
-              tileId: nt.id,
-            });
-          }
-        }
+      // Dispatch each group via its registered GroupType.
+      for (const g of unfired) {
+        const type = getGroupType(g.typeId);
+        if (!type) continue; // unknown group type — silently skip
+        type.onFire({ group: g, tiles, when, beatSec, emit });
       }
 
       return { beats: 1, aborted: false };
