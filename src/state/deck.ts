@@ -1,4 +1,5 @@
-import type { Tile, TileId, RepeatTile } from '../graph/types';
+import type { Tile, TileId, RepeatTile, GameMode, ScaleRoot, ScaleType, Wildness } from '../graph/types';
+import { WILDNESS_RATIO, SCALE_INTERVALS } from '../graph/types';
 import { newTileId } from '../utils/id';
 
 /** Pure data — no class methods. */
@@ -23,32 +24,72 @@ function shuffle<T>(arr: T[], rng: Rng = Math.random): T[] {
   return arr;
 }
 
+export interface CreateDeckOptions {
+  mode: GameMode;
+  /** Wildcard density (percentage of note-tile count). */
+  wildness: Wildness;
+  /** Required when mode === 'scale'. */
+  scaleRoot?: ScaleRoot;
+  scaleType?: ScaleType;
+  /** Optional — for tests. */
+  rng?: Rng;
+}
+
 /**
- * Build a shuffled deck of 144 note tiles (MIDI 36..84, 3 copies each, trimmed
- * to 144) plus 2 * `repeatSets` generic repeat wildcard tiles. Two repeats on
- * the same row/column with notes between auto-pair into a looping section.
+ * Build a shuffled deck.
  *
- * Total deck size = 144 + 2 * repeatSets.
+ * Explorer mode: 12 instances of every pitch class (C..B), distributed
+ * across midi 36..83 so each PC has 4 octaves × 3 copies = 12 tiles. Total
+ * 144 note tiles.
+ *
+ * Scale mode: 12 instances of every pitch class IN the chosen scale (e.g.
+ * 7 PCs for major / minor), distributed the same way (4 in-range octaves
+ * × 3 copies). Total = 12 × |scale|. Other PCs are excluded entirely.
+ *
+ * Wildcards (currently just Repeat tiles) are mixed in proportional to the
+ * note count: round(notes * wildness%). Wildness ratios in graph/types.
  */
-export function createDeck(repeatSets = 0, rng?: Rng): DeckRecord {
+export function createDeck(opts: CreateDeckOptions): DeckRecord {
   const tiles: Record<TileId, Tile> = {};
   const ids: TileId[] = [];
+  const rng = opts.rng;
 
-  // Note tiles.
-  const pitches: number[] = [];
-  for (let midi = 36; midi <= 84; midi++) pitches.push(midi, midi, midi);
-  pitches.length = 144;
-  for (const pitch of pitches) {
-    const id = newTileId();
-    tiles[id] = { id, kind: 'note', pitch, bass: false, cell: null };
-    ids.push(id);
+  // Determine which pitch classes to include.
+  let pcSet: Set<number>;
+  if (opts.mode === 'scale') {
+    if (opts.scaleRoot === undefined || opts.scaleType === undefined) {
+      throw new Error('scaleRoot and scaleType are required for scale mode');
+    }
+    const intervals = SCALE_INTERVALS[opts.scaleType];
+    pcSet = new Set(intervals.map(s => (opts.scaleRoot! + s) % 12));
+  } else {
+    pcSet = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   }
 
-  // Repeat wildcards — generic, auto-pair on the strand by position.
-  for (let i = 0; i < repeatSets * 2; i++) {
+  // For each PC, pick 4 in-range octaves (midi 36..83 = 4 octaves) and lay
+  // down 3 copies of each → 12 instances per PC.
+  for (let pc = 0; pc < 12; pc++) {
+    if (!pcSet.has(pc)) continue;
+    // Octave bases: 36 (C2), 48 (C3), 60 (C4), 72 (C5). Skip 84 (C6) so all
+    // PCs get the same count (84 + 11 = 95 > 84 → only C reaches 84).
+    for (const base of [36, 48, 60, 72]) {
+      const midi = base + pc;
+      if (midi > 83) continue;
+      for (let copy = 0; copy < 3; copy++) {
+        const id = newTileId();
+        tiles[id] = { id, kind: 'note', pitch: midi, bass: false, cell: null };
+        ids.push(id);
+      }
+    }
+  }
+
+  // Wildcards — proportional to note count.
+  const noteCount = ids.length;
+  const wildcardCount = Math.round(noteCount * WILDNESS_RATIO[opts.wildness]);
+  for (let i = 0; i < wildcardCount; i++) {
     const id = newTileId();
-    const repeat: RepeatTile = { id, kind: 'repeat', count: 1, cell: null };
-    tiles[id] = repeat;
+    const tile: RepeatTile = { id, kind: 'repeat', count: 1, cell: null };
+    tiles[id] = tile;
     ids.push(id);
   }
 

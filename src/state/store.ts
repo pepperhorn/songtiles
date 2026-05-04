@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, RepeatPoolSize, Paint, PaintId, PaintTool, PaintKind } from '../graph/types';
+import type { Cell, Tile, TileId, SegmentSettings, SegmentMode, TrayCapacity, Wildness, GameMode, ScaleRoot, ScaleType, Paint, PaintId, PaintTool, PaintKind } from '../graph/types';
 import { cellKey } from '../graph/types';
 import { newTileId } from '../utils/id';
 import { serialiseSession, deserialiseSession } from './persistence';
@@ -38,8 +38,10 @@ export interface AppState {
   discardedCount: number;
   // Session config / playback state.
   trayCapacity: TrayCapacity;
-  repeatPoolSize: RepeatPoolSize;
-  repeatSetsRemaining: number;
+  wildness: Wildness;
+  gameMode: GameMode;
+  scaleRoot: ScaleRoot;
+  scaleType: ScaleType;
   bpm: number;
   patchId: string;
   isPlaying: boolean;
@@ -57,7 +59,13 @@ export interface AppState {
   activeTiles: Record<TileId, true>;
 
   // Actions
-  initSession(opts: { trayCapacity: TrayCapacity; repeatPoolSize: RepeatPoolSize }): void;
+  initSession(opts: {
+    trayCapacity: TrayCapacity;
+    wildness: Wildness;
+    gameMode: GameMode;
+    scaleRoot?: ScaleRoot;
+    scaleType?: ScaleType;
+  }): void;
   refillTray(): void;
   discardTrayTile(id: TileId): void;
   placeTileOnCell(id: TileId, cell: Cell): void;
@@ -94,8 +102,10 @@ const baseDefaults = {
   deck: [] as TileId[],
   discardedCount: 0,
   trayCapacity: 8 as TrayCapacity,
-  repeatPoolSize: 5 as RepeatPoolSize,
-  repeatSetsRemaining: 5,
+  wildness: 'wild' as Wildness,
+  gameMode: 'explorer' as GameMode,
+  scaleRoot: 0 as ScaleRoot,
+  scaleType: 'major' as ScaleType,
   bpm: 240,
   patchId: 'acoustic_grand_piano',
   isPlaying: false,
@@ -131,13 +141,22 @@ function deckSlice(s: Pick<AppState, 'tiles'|'tray'|'deck'|'discardedCount'>): D
 export const useAppStore = create<AppState>((set, get) => ({
   ...baseDefaults,
 
-  initSession({ trayCapacity, repeatPoolSize }) {
-    // Repeat wildcards live in the deck and are drawn to the tray like notes.
-    const d = drawTo(createDeck(repeatPoolSize), trayCapacity);
+  initSession({ trayCapacity, wildness, gameMode, scaleRoot, scaleType }) {
+    const d = drawTo(
+      createDeck({
+        mode: gameMode,
+        wildness,
+        scaleRoot: scaleRoot ?? 0,
+        scaleType: scaleType ?? 'major',
+      }),
+      trayCapacity,
+    );
     set({
       ...baseDefaults,
       tiles: d.tiles, tray: d.tray, deck: d.deck, discardedCount: d.discardedCount,
-      trayCapacity, repeatPoolSize, repeatSetsRemaining: repeatPoolSize,
+      trayCapacity, wildness, gameMode,
+      scaleRoot: scaleRoot ?? 0,
+      scaleType: scaleType ?? 'major',
       bpm: get().bpm, patchId: get().patchId,
     });
   },
@@ -466,8 +485,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       tiles: f.tiles, byCell: f.byCell,
       startTileId: f.startTileId, segmentSettings: f.segmentSettings,
       tray: f.placements.tray, deck: f.placements.deck, discardedCount: f.discardedCount,
-      trayCapacity: f.trayCapacity, repeatPoolSize: f.repeatPoolSize,
-      repeatSetsRemaining: f.repeatSetsRemaining,
+      trayCapacity: f.trayCapacity, wildness: f.wildness,
+      gameMode: f.gameMode, scaleRoot: f.scaleRoot, scaleType: f.scaleType,
       bpm: f.bpm, patchId: f.patchId, isPlaying: false,
     });
   },

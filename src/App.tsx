@@ -46,14 +46,14 @@ function Inner() {
           tiles: f.tiles, byCell: f.byCell,
           startTileId: f.startTileId, segmentSettings: f.segmentSettings,
           tray: f.placements.tray, deck: f.placements.deck, discardedCount: f.discardedCount,
-          trayCapacity: f.trayCapacity, repeatPoolSize: f.repeatPoolSize,
-          repeatSetsRemaining: f.repeatSetsRemaining,
+          trayCapacity: f.trayCapacity, wildness: f.wildness,
+          gameMode: f.gameMode, scaleRoot: f.scaleRoot, scaleType: f.scaleType,
           bpm: f.bpm, patchId: f.patchId, isPlaying: false,
         });
         return;
       }
     } catch {}
-    initSession({ trayCapacity: 8, repeatPoolSize: 5 });
+    initSession({ trayCapacity: 8, wildness: 'wild', gameMode: 'explorer' });
   }, [initSession, showSetup]);
 
   function newGame() {

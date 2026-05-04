@@ -4,20 +4,26 @@ import { useAppStore } from '../../src/state/store';
 
 describe('persistence', () => {
   beforeEach(() => {
-    useAppStore.getState().initSession({ trayCapacity: 8, repeatPoolSize: 5 });
+    useAppStore.getState().initSession({
+      trayCapacity: 8,
+      wildness: 'wild',
+      gameMode: 'explorer',
+    });
   });
 
-  it('serialiseSession produces valid JSON with version 1', () => {
+  it('serialiseSession produces version 2 JSON with the new mode/wildness fields', () => {
     const state = useAppStore.getState();
     const json = serialiseSession(state);
     const parsed = JSON.parse(json);
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.savedAt).toBeTruthy();
     expect(parsed.bpm).toBe(state.bpm);
     expect(parsed.patchId).toBe(state.patchId);
     expect(parsed.trayCapacity).toBe(state.trayCapacity);
-    expect(parsed.repeatPoolSize).toBe(state.repeatPoolSize);
-    expect(parsed.repeatSetsRemaining).toBe(state.repeatSetsRemaining);
+    expect(parsed.wildness).toBe(state.wildness);
+    expect(parsed.gameMode).toBe(state.gameMode);
+    expect(parsed.scaleRoot).toBe(state.scaleRoot);
+    expect(parsed.scaleType).toBe(state.scaleType);
     expect(parsed.discardedCount).toBe(state.discardedCount);
     expect(parsed.placements).toBeDefined();
     expect(Array.isArray(parsed.placements.canvas)).toBe(true);
@@ -31,26 +37,17 @@ describe('persistence', () => {
     const parsed = JSON.parse(json);
     const restored = deserialiseSession(parsed);
 
-    expect(restored.version).toBe(1);
+    expect(restored.version).toBe(2);
     expect(restored.trayCapacity).toBe(state.trayCapacity);
-    expect(restored.repeatPoolSize).toBe(state.repeatPoolSize);
+    expect(restored.wildness).toBe(state.wildness);
+    expect(restored.gameMode).toBe(state.gameMode);
     expect(restored.placements.tray).toEqual(state.tray);
     expect(restored.placements.deck).toEqual(state.deck);
     expect(Object.keys(restored.tiles)).toEqual(Object.keys(state.tiles));
-    // byCell is rebuilt from tiles
     expect(restored.byCell).toBeDefined();
   });
 
   it('deserialiseSession throws on unsupported version', () => {
-    expect(() => deserialiseSession({ version: 2 })).toThrow('Unsupported session version');
-  });
-
-  it('deserialiseSession throws when note tile total exceeds 144', () => {
-    const state = useAppStore.getState();
-    const json = serialiseSession(state);
-    const parsed = JSON.parse(json);
-    // Force discardedCount way above 144
-    parsed.discardedCount = 200;
-    expect(() => deserialiseSession(parsed)).toThrow('Invariant violated');
+    expect(() => deserialiseSession({ version: 1 })).toThrow('Unsupported session version');
   });
 });
