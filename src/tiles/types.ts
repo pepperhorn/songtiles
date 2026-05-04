@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { Tile, TileId, Wildness } from '../graph/types';
 import type { ThemeTokens } from '../theme/tokens';
 import type { useAppStore } from '../state/store';
@@ -11,12 +11,22 @@ export interface RenderContentProps {
   tokens: ThemeTokens;
 }
 
+export interface ContainerStyleProps {
+  tile: Tile;
+  tokens: ThemeTokens;
+}
+
 export interface TileKind {
   id: TileKindId;
   label: string;
   /** Render the inner visual content of a tile of this kind (caller owns the
    *  outer chrome: size, border, drop shadow, halo). */
   renderContent(props: RenderContentProps): ReactNode;
+  /** Optional: contribute container style (e.g. background color) on top of
+   *  the standard chrome. */
+  containerStyle?(props: ContainerStyleProps): CSSProperties;
+  /** Optional: extra class names appended to the outer container. */
+  containerClassName?: string;
   /** Optional handler invoked when the user taps this tile (after a successful
    *  tap, not a drag). Receives the tile id and the store reference. */
   onTap?(id: TileId, store: typeof useAppStore): void;

@@ -1,5 +1,5 @@
 import { useTheme } from '../theme/ThemeProvider';
-import { midiToOctave, midiToPitchClass } from '../constants/noteColors';
+import { getTileKind } from '../tiles/registry';
 import type { Tile as TileT } from '../graph/types';
 
 export function Tile({
@@ -12,84 +12,25 @@ export function Tile({
   shadow?: string;
 }) {
   const { tokens } = useTheme();
-  if (tile.kind === 'note') {
-    const pc = midiToPitchClass(tile.pitch);
-    const oct = midiToOctave(tile.pitch);
-    return (
-      <div
-        className="songtile note-tile relative grid place-items-center select-none"
-        style={{
-          width: size, height: size, borderRadius: 14,
-          background: tokens.noteBg(pc), color: '#fff',
-          border: '2px solid var(--chunky-edge)',
-          boxShadow: `${shadow ?? tokens.tileShadow}, ${tokens.tileBevel}`,
-          opacity: dimmed ? 0.4 : 1,
-        }}
-      >
-        <span
-          className="note-name"
-          style={{
-            fontSize: size * 0.46,
-            textShadow: tokens.noteTextShadow,
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontWeight: 800,
-            letterSpacing: '-0.04em',
-          }}
-        >
-          {pc}
-        </span>
-        <span
-          className="note-octave absolute bottom-1.5 right-2 text-xs opacity-90"
-          style={{ textShadow: tokens.noteTextShadow }}
-        >
-          {oct}
-        </span>
-        {tile.bass && (
-          <span
-            className="bass-arrow absolute top-1.5 left-2 text-xs"
-            style={{ textShadow: tokens.noteTextShadow }}
-          >
-            ↓
-          </span>
-        )}
-      </div>
-    );
-  }
-  if (tile.kind === 'repeat') {
-    // Single Repeat tile — text label + tap-cycled count. Replaces the old
-    // open/close pair model. Place one on a strand to loop everything from
-    // the strand start to this tile.
-    const countLabel = tile.count === 'inf' ? '∞' : `${tile.count}×`;
-    return (
-      <div
-        className="songtile repeat-tile relative grid place-items-center select-none"
-        style={{
-          width: size, height: size, borderRadius: 14,
-          background: tokens.trayBg, color: tokens.textPrimary,
-          border: '2px solid var(--chunky-edge)',
-          boxShadow: `${shadow ?? tokens.tileShadow}, ${tokens.tileBevel}`,
-          overflow: 'hidden',
-        }}
-      >
-        <span
-          className="repeat-label"
-          style={{
-            fontFamily: "'Bricolage Grotesque', sans-serif",
-            fontWeight: 800,
-            fontSize: size * 0.18,
-            letterSpacing: '0.06em',
-            textTransform: 'uppercase',
-          }}
-        >
-          Repeat
-        </span>
-        <span
-          className="repeat-count absolute bottom-1.5 right-2 tabular-nums"
-          style={{ color: tokens.textPrimary, fontWeight: 700, fontSize: size * 0.13 }}
-        >
-          {countLabel}
-        </span>
-      </div>
-    );
-  }
+  const kind = getTileKind(tile.kind);
+  if (!kind) return null;
+
+  const extraStyle = kind.containerStyle ? kind.containerStyle({ tile, tokens }) : {};
+  const className =
+    `songtile ${kind.containerClassName ?? ''} relative grid place-items-center select-none`.trim();
+
+  return (
+    <div
+      className={className}
+      style={{
+        width: size, height: size, borderRadius: 14,
+        border: '2px solid var(--chunky-edge)',
+        boxShadow: `${shadow ?? tokens.tileShadow}, ${tokens.tileBevel}`,
+        opacity: dimmed ? 0.4 : 1,
+        ...extraStyle,
+      }}
+    >
+      {kind.renderContent({ tile, size, tokens })}
+    </div>
+  );
 }

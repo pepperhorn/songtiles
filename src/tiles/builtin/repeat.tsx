@@ -34,6 +34,10 @@ function RepeatContent({ tile, size, tokens }: RenderContentProps) {
 export const REPEAT_KIND: TileKind = {
   id: 'repeat',
   label: 'Repeat',
+  containerClassName: 'repeat-tile',
+  containerStyle({ tokens }) {
+    return { background: tokens.trayBg, color: tokens.textPrimary, overflow: 'hidden' };
+  },
   renderContent: RepeatContent,
   onTap(id, store) {
     store.getState().cycleRepeatCount(id);

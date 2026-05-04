@@ -40,6 +40,11 @@ function NoteContent({ tile, size, tokens }: RenderContentProps) {
 export const NOTE_KIND: TileKind = {
   id: 'note',
   label: 'Note',
+  containerClassName: 'note-tile',
+  containerStyle({ tile, tokens }) {
+    if (tile.kind !== 'note') return {};
+    return { background: tokens.noteBg(midiToPitchClass(tile.pitch)), color: '#fff' };
+  },
   renderContent: NoteContent,
   onTap(id, store) {
     store.getState().toggleBass(id);
