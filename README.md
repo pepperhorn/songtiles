@@ -15,3 +15,7 @@ The app supports external plugin bundles loaded by URL at boot. Plugins can regi
 - [`docs/PLUGIN_API_CHANGELOG.md`](docs/PLUGIN_API_CHANGELOG.md) — API version history
 
 Try the demo: `npm run build:demo-plugin && npm run dev`, then visit `/?plugin=/plugins/demo.js`.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). The MIT license imposes no restrictions on plugins: external plugin bundles (loaded via the runtime ESM import path) are not derivative works of the core, and even where derivation could be argued, MIT permits commercial sale and proprietary distribution of derivatives. Plugin authors are free to ship paid, closed-source, or otherwise proprietary plugins under any license they choose.
