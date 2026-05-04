@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+.vscode
+.idea
+*.log
+.DS_Store
+coverage
+.env
+.env.*
+!.env.example
+tests/**/__snapshots__
+.claude
