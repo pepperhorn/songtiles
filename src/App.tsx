@@ -47,13 +47,13 @@ function Inner() {
           startTileId: f.startTileId, segmentSettings: f.segmentSettings,
           tray: f.placements.tray, deck: f.placements.deck, discardedCount: f.discardedCount,
           trayCapacity: f.trayCapacity, wildness: f.wildness,
-          gameMode: f.gameMode, scaleRoot: f.scaleRoot, scaleType: f.scaleType,
+          gameMode: f.gameMode, gameParams: f.gameParams,
           bpm: f.bpm, patchId: f.patchId, isPlaying: false,
         });
         return;
       }
     } catch {}
-    initSession({ trayCapacity: 8, wildness: 'wild', gameMode: 'explorer' });
+    initSession({ trayCapacity: 8, wildness: 'wild', gameMode: 'explorer', gameParams: {} });
   }, [initSession, showSetup]);
 
   function newGame() {

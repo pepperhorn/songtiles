@@ -4,10 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { Tray } from '../../src/components/Tray';
 import { useAppStore } from '../../src/state/store';
 import { ThemeProvider } from '../../src/theme/ThemeProvider';
+import '../../src/games/builtin';
 
 describe('<Tray>', () => {
   beforeEach(() => {
-    useAppStore.getState().initSession({ trayCapacity: 8, repeatPoolSize: 5 });
+    useAppStore.getState().initSession({
+      trayCapacity: 8, wildness: 'wild', gameMode: 'explorer', gameParams: {},
+    });
   });
 
   it('renders one button per tray tile', () => {

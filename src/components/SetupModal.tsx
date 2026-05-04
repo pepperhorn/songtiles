@@ -1,8 +1,9 @@
-import { useState, type CSSProperties } from 'react';
+import { useState, useMemo, type CSSProperties } from 'react';
 import { useAppStore } from '../state/store';
 import { useTheme } from '../theme/ThemeProvider';
-import type { TrayCapacity, Wildness, GameMode, ScaleRoot, ScaleType } from '../graph/types';
-import { ScaleWheel } from './ScaleWheel';
+import type { TrayCapacity, Wildness } from '../graph/types';
+import { listGameModes } from '../games/registry';
+import type { GameModeId } from '../games/types';
 
 const CAPACITIES: TrayCapacity[] = [6, 8, 12];
 const WILDNESS_LADDER: Array<{ key: Wildness; label: string; hint: string }> = [
@@ -10,22 +11,24 @@ const WILDNESS_LADDER: Array<{ key: Wildness; label: string; hint: string }> = [
   { key: 'wild',   label: 'Wild',   hint: '10%' },
   { key: 'wilder', label: 'Wilder', hint: '15%' },
 ];
-const MODES: Array<{ key: GameMode; label: string; blurb: string }> = [
-  { key: 'explorer', label: 'Explorer', blurb: 'Every note. Make any song.' },
-  { key: 'scale',    label: 'Scale',    blurb: 'Just notes in your scale.' },
-];
-
-const PITCH_NAMES: string[] = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 
 export function SetupModal({ onComplete }: { onComplete(): void }) {
   const { tokens } = useTheme();
+  const modes = useMemo(() => listGameModes(), []);
   const [trayCapacity, setTrayCapacity] = useState<TrayCapacity>(8);
   const [wildness, setWildness] = useState<Wildness>('wild');
-  const [gameMode, setGameMode] = useState<GameMode>('explorer');
-  const [scaleRoot, setScaleRoot] = useState<ScaleRoot>(0);
-  const [scaleType, setScaleType] = useState<ScaleType>('major');
+  const [gameMode, setGameMode] = useState<GameModeId>(modes[0]?.id ?? 'explorer');
+  const [gameParams, setGameParams] = useState<unknown>(modes[0]?.defaultParams ?? {});
   const initSession = useAppStore(s => s.initSession);
   const initAudio = useAppStore(s => s.initAudio);
+
+  const selectedMode = modes.find(m => m.id === gameMode);
+
+  function selectMode(id: GameModeId) {
+    setGameMode(id);
+    const m = modes.find(mm => mm.id === id);
+    setGameParams(m?.defaultParams ?? {});
+  }
 
   const optionBase: CSSProperties = {
     minWidth: 56,
@@ -40,6 +43,8 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
     background: '#06d6a0',
     color: '#0e1421',
   };
+
+  const SetupExtras = selectedMode?.SetupExtras;
 
   return (
     <div
@@ -63,19 +68,19 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
         </h2>
         <p className="setup-sub text-sm opacity-70 mb-5">Pick a vibe.</p>
 
-        {/* Mode picker */}
+        {/* Mode picker — driven by registered game modes */}
         <div className="setup-row mb-5">
           <div className="setup-label text-xs uppercase tracking-wider opacity-70 mb-2 font-semibold">Mode</div>
-          <div className="setup-options flex gap-2">
-            {MODES.map(m => {
-              const active = gameMode === m.key;
+          <div className="setup-options flex gap-2 flex-wrap">
+            {modes.map(m => {
+              const active = gameMode === m.id;
               return (
                 <button
-                  key={m.key}
+                  key={m.id}
                   type="button"
                   className="option-btn flex-1 px-3 py-3 rounded-lg text-sm text-left"
                   style={{ ...optionBase, ...(active ? optionSelected : {}) }}
-                  onClick={() => setGameMode(m.key)}
+                  onClick={() => selectMode(m.id)}
                 >
                   <div style={{ fontWeight: 800, fontSize: 15 }}>{m.label}</div>
                   <div style={{ fontWeight: 500, fontSize: 11, opacity: 0.75, marginTop: 2 }}>{m.blurb}</div>
@@ -85,35 +90,8 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
           </div>
         </div>
 
-        {/* Scale picker (only when mode === 'scale') */}
-        {gameMode === 'scale' && (
-          <div className="setup-row mb-5">
-            <div className="setup-label text-xs uppercase tracking-wider opacity-70 mb-2 font-semibold">Scale</div>
-            <div className="flex gap-3 items-stretch">
-              <ScaleWheel
-                items={PITCH_NAMES}
-                selected={scaleRoot}
-                onChange={i => setScaleRoot(i as ScaleRoot)}
-              />
-              <div className="flex flex-col gap-2 flex-1">
-                {(['major', 'minor'] as const).map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    className="px-3 py-2 rounded-lg text-sm flex-1"
-                    style={{ ...optionBase, ...(scaleType === t ? optionSelected : {}) }}
-                    onClick={() => setScaleType(t)}
-                  >
-                    {t === 'major' ? 'Major' : 'Minor'}
-                  </button>
-                ))}
-                <div className="text-xs opacity-60 mt-1 px-1">
-                  {PITCH_NAMES[scaleRoot]} {scaleType}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Mode-specific setup extras (e.g. scale picker) */}
+        {SetupExtras && <SetupExtras params={gameParams} setParams={setGameParams} />}
 
         {/* Tray capacity */}
         <div className="setup-row mb-5">
@@ -164,10 +142,7 @@ export function SetupModal({ onComplete }: { onComplete(): void }) {
           }}
           onClick={() => {
             initAudio();
-            initSession({
-              trayCapacity, wildness, gameMode,
-              ...(gameMode === 'scale' ? { scaleRoot, scaleType } : {}),
-            });
+            initSession({ trayCapacity, wildness, gameMode, gameParams });
             try { localStorage.setItem('doremino.firstRunDone', 'yes'); } catch {}
             onComplete();
           }}
